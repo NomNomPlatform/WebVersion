@@ -54,20 +54,28 @@ interface UseGoogleIdentityResult {
   configured: boolean;
 }
 
+// Module-level singleton state để tránh gọi initialize() nhiều lần khi React 18 remount
+let activeCredentialCallback: ((idToken: string) => void) | null = null;
+let initializedClientId: string | null = null;
+
 /**
  * Load Google Identity Services (GIS) script động và bind callback trả về id_token.
  * - Nếu thiếu VITE_GOOGLE_CLIENT_ID -> trả `configured: false` để FE không render nút.
- * - Script được load 1 lần (idempotent).
+ * - Script và GIS initialization được đảm bảo singleton (chỉ gọi initialize 1 lần duy nhất).
  */
 export function useGoogleIdentity({
   clientId,
   onCredential,
 }: UseGoogleIdentityOptions): UseGoogleIdentityResult {
   const [ready, setReady] = useState(false);
-  const cbRef = useRef(onCredential);
 
   useEffect(() => {
-    cbRef.current = onCredential;
+    activeCredentialCallback = onCredential;
+    return () => {
+      if (activeCredentialCallback === onCredential) {
+        activeCredentialCallback = null;
+      }
+    };
   }, [onCredential]);
 
   useEffect(() => {
@@ -75,13 +83,23 @@ export function useGoogleIdentity({
 
     const init = () => {
       try {
-        window.google?.accounts.id.initialize({
-          client_id: clientId,
-          callback: (resp) => cbRef.current(resp.credential),
-          cancel_on_tap_outside: true,
-          use_fedcm_for_prompt: true,
-        });
-        setReady(true);
+        if (window.google?.accounts?.id) {
+          // Chỉ gọi initialize 1 lần duy nhất với clientId này
+          if (initializedClientId !== clientId) {
+            window.google.accounts.id.initialize({
+              client_id: clientId,
+              callback: (resp) => {
+                if (resp.credential && activeCredentialCallback) {
+                  activeCredentialCallback(resp.credential);
+                }
+              },
+              cancel_on_tap_outside: true,
+              use_fedcm_for_prompt: true,
+            });
+            initializedClientId = clientId;
+          }
+          setReady(true);
+        }
       } catch (err) {
         console.error("[GoogleIdentity] init failed", err);
       }
