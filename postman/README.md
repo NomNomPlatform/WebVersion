@@ -1,41 +1,101 @@
-# Postman Collection - NomNom
+# Postman Collection & Test Scenarios – NomNom Platform
 
-## Import
-1. Mo Postman -> Import -> chon 2 file:
+Bộ Postman Collection và Environment phục vụ kiểm thử thủ công và tự động hóa toàn diện cho hệ sinh thái Microservices NomNom (10 services + AI Recommendation + VNPay Gateway).
+
+---
+
+## 1. Hướng dẫn Import vào Postman
+
+1. Mở Postman -> Chọn **Import**.
+2. Kéo thả 2 file trong thư mục này:
    - `NomNom.postman_collection.json`
    - `NomNom.postman_environment.json`
-2. Chon environment "NomNom - Local" o goc tren phai.
+3. Ở góc trên bên phải của Postman Workspace, chọn môi trường **NomNom - Local**.
 
-## Luong test day du (goi truc tiep tung service, khong qua gateway)
-1. **User Service > Auth > Register Customer** va **Register Restaurant Owner** — tao 2 tai khoan.
-2. **User Service > Auth > Login Customer** — luu token vao `accessToken`, `userId` vao `userId`.
-3. **User Service > Auth > Login Restaurant Owner** — luu token vao `ownerAccessToken`, `userId` vao `ownerId`.
-4. **Restaurant Service > Create Restaurant** (dung header `X-User-Id: {{ownerId}}`) — luu `restaurantId`.
-5. **Menu Service > Create Menu Item** — luu `menuItemId`.
-6. **Order Service > Create Order** (dung `X-User-Id: {{userId}}`, item lay theo `menuItemId`) — luu `orderId`. Order-service se tu tra gia that tu menu-service va goi payment-service dong bo.
-7. **Payment Service > Process Payment** — co the goi thu cong de test rieng (mock gateway 90% success), hoac xem ket qua qua **Get Payment By Order Id**.
-8. **Order Service > Update Order Status (Owner)** — chu nha hang chuyen trang thai don sang `READY`.
-9. **Notification Service > Get My Notifications** — xem thong bao duoc Kafka consumer tao ra tu cac event order.*/payment.*.
+---
 
-## Vi sao goi truc tiep service thay vi qua Gateway?
-API Gateway (`infrastructure/api-gateway`) validate JWT va inject header `X-User-Id` / `X-User-Role` cho request phia sau. Khi test truc tiep tung service (bo qua gateway) de debug nhanh, cac request trong collection tu dien 2 header nay bang tay (lay tu `userId`/`ownerId` da luu o buoc Login). Neu muon test qua gateway that, doi `*ServiceUrl` thanh `{{gatewayUrl}}` va chi dung `Authorization: Bearer {{accessToken}}`.
+## 2. Các Kịch bản Kiểm thử Tự động (E2E Test Scenarios)
 
-## Bien environment
-| Bien | Mac dinh | Y nghia |
+Thư mục **`🧪 Test Scenarios (Kịch bản kiểm thử tích hợp E2E)`** chứa 4 luồng kiểm thử tự động, tích hợp sẵn các assertion script (`pm.test`) và tự động trích xuất, truyền biến (`accessToken`, `userId`, `restaurantId`, `orderId`...) giữa các bước:
+
+### 🌟 Scenario 1: Customer Ordering Flow (Full Lifecycle)
+Kiểm thử trọn vẹn hành trình khách hàng từ lúc đăng nhập đến khi nhận hàng:
+- **1.1 Login Customer:** Đăng nhập tài khoản khách hàng, lưu `accessToken` và `userId`.
+- **1.2 Browse Available Restaurants:** Duyệt danh sách quán ăn đang mở cửa, lấy `restaurantId`.
+- **1.3 Browse Restaurant Menu Items:** Xem thực đơn của quán, trích xuất `menuItemId` và giá bán.
+- **1.4 Place Order (Customer):** Gửi yêu cầu đặt 2 phần món ăn kèm địa chỉ giao hàng và ghi chú. Kiểm tra `status == "PENDING"` và lưu `orderId`.
+- **1.5 Verify Order Status is PENDING:** Đọc lại đơn hàng vừa tạo, kiểm tra tổng tiền và trạng thái hợp lệ.
+- **1.6 Initiate VNPay Payment:** Tạo yêu cầu thanh toán VNPay Sandbox, xác minh URL chuyển hướng chứa `sandbox.vnpayment.vn`.
+- **1.7 Check Customer Order Notifications:** Kiểm tra hộp thư thông báo của khách hàng, đảm bảo sự kiện đặt hàng từ Kafka đã được tạo thành notification.
+
+### 🏪 Scenario 2: Restaurant Owner Menu & Order Fulfillment
+Kiểm thử quy trình vận hành quán ăn từ phía Chủ nhà hàng:
+- **2.1 Login Restaurant Owner:** Đăng nhập tài khoản đối tác, lưu `ownerAccessToken` và `ownerId`.
+- **2.2 Create Restaurant Profile:** Đăng ký quán ăn mới với giờ mở/đóng cửa và địa chỉ.
+- **2.3 Add Menu Item with Nutrition Metrics:** Thêm món ăn mới với đầy đủ thông số calo, protein, carbs, chất béo.
+- **2.4 Update Menu Item Availability:** Điều chỉnh giá bán và cập nhật thông tin món ăn.
+- **2.5 Inspect Restaurant Live Orders:** Theo dõi danh sách đơn hàng đổ về quán thời gian thực.
+- **2.6 Transition Order Status to READY:** Xác nhận chuẩn bị xong món, cập nhật trạng thái đơn sang `READY`.
+- **2.7 Mark Order as DELIVERED:** Hoàn tất bàn giao đơn hàng cho tài xế/khách, đơn chuyển sang `DELIVERED`.
+
+### 🥗 Scenario 3: AI Health Profiling & Meal Recommendation
+Kiểm thử tính năng tính toán dinh dưỡng và gợi ý món ăn thông minh bằng AI:
+- **3.1 Login Customer:** Xác thực phiên làm việc của khách hàng.
+- **3.2 Update User Health Metrics:** Cập nhật chiều cao, cân nặng, giới tính, mức độ vận động và mục tiêu thể hình.
+- **3.3 Verify User Health Profile Summary:** Kiểm tra các chỉ số chuyển hóa được tính toán tự động (BMR, TDEE, Calo khuyến nghị).
+- **3.4 Check AI Recommendation Service Capability:** Kiểm tra trạng thái sẵn sàng của AI Service và danh sách AI Providers đang bật (Groq / Gemini).
+- **3.5 Generate AI Meal Recommendation:** Gửi yêu cầu AI xếp hạng món ăn phù hợp với bữa trưa (LUNCH) và mức calo mục tiêu kèm giải thích lý do gợi ý.
+- **3.6 Review Recommendation Audit History:** Kiểm tra nhật ký gợi ý đã được lưu trữ vào MongoDB RecommendationLog.
+
+### 🛡️ Scenario 4: Security, Negative Cases & Role Access Control
+Kiểm thử bảo mật, phân quyền RBAC và xử lý ngoại lệ:
+- **4.1 Unauthorized Access to Orders without Token:** Gọi API yêu cầu xác thực mà không truyền token -> Mong đợi `401 Unauthorized` hoặc `400`.
+- **4.2 Customer Accessing Owner Endpoints (Forbidden):** Khách hàng cố tình can thiệp đổi trạng thái đơn của quán -> Mong đợi `403 Forbidden`.
+- **4.3 Login with Wrong Password:** Đăng nhập với mật khẩu sai -> Mong đợi `400` hoặc `401`.
+- **4.4 Retrieve Non-Existent Order:** Tra cứu đơn hàng với UUID không tồn tại -> Mong đợi `404 Not Found`.
+- **4.5 Create Order with Empty Items:** Đặt hàng với giỏ hàng rỗng -> Mong đợi `400 Bad Request`.
+
+---
+
+## 3. Chạy Tự động Hóa với Newman CLI
+
+Bạn có thể chạy toàn bộ test suite hoặc từng kịch bản đơn lẻ bằng Newman trong terminal:
+
+```bash
+# 1. Chạy toàn bộ collection
+npx newman run postman/NomNom.postman_collection.json \
+  -e postman/NomNom.postman_environment.json \
+  --reporters cli
+
+# 2. Chỉ chạy kịch bản Scenario 1 (Customer Ordering)
+npx newman run postman/NomNom.postman_collection.json \
+  -e postman/NomNom.postman_environment.json \
+  --folder "Scenario 1 - Customer Ordering Flow (Full Lifecycle)"
+
+# 3. Chỉ chạy kịch bản Scenario 3 (AI Recommendation)
+npx newman run postman/NomNom.postman_collection.json \
+  -e postman/NomNom.postman_environment.json \
+  --folder "Scenario 3 - AI Health Profiling & Meal Recommendation"
+```
+
+---
+
+## 4. Bảng Biến Môi Trường (Environment Variables)
+
+| Tên biến | Giá trị mặc định (Local) | Mô tả |
 |---|---|---|
-| `gatewayUrl` | http://localhost:8080 | API Gateway |
-| `userServiceUrl` | http://localhost:8081 | user-service |
-| `restaurantServiceUrl` | http://localhost:8082 | restaurant-service |
-| `orderServiceUrl` | http://localhost:8083 | order-service |
-| `menuServiceUrl` | http://localhost:8084 | menu-service |
-| `paymentServiceUrl` | http://localhost:8085 | payment-service |
-| `recommendationServiceUrl` | http://localhost:8086 | recommendation-service (chua co endpoint, con skeleton) |
-| `notificationServiceUrl` | http://localhost:8087 | notification-service |
-| `accessToken` / `userId` | (rong) | JWT + userId cua Customer, tu dong dien sau khi Login Customer |
-| `ownerAccessToken` / `ownerId` | (rong) | JWT + userId cua Restaurant Owner, tu dong dien sau khi Login Restaurant Owner |
-| `restaurantId` | (rong) | Tu dong dien sau khi Create Restaurant |
-| `menuItemId` | (rong) | Tu dong dien sau khi Create Menu Item |
-| `orderId` | (rong) | Tu dong dien sau khi Create Order |
-| `paymentId` | (rong) | Tu dong dien sau khi Process Payment |
-
-> `recommendation-service` van chi la skeleton, chua co endpoint nen chua co request trong collection.
+| `gatewayUrl` | http://localhost:8080 | API Gateway (Reverse proxy & JWT filter) |
+| `userServiceUrl` | http://localhost:8081 | User Service (Tài khoản, hồ sơ & sức khỏe) |
+| `restaurantServiceUrl` | http://localhost:8082 | Restaurant Service (Thông tin nhà hàng) |
+| `orderServiceUrl` | http://localhost:8083 | Order Service (Xử lý đơn & Kafka producer) |
+| `menuServiceUrl` | http://localhost:8084 | Menu Service (Thực đơn & dinh dưỡng) |
+| `paymentServiceUrl` | http://localhost:8085 | Payment Service (VNPay Gateway Sandbox) |
+| `recommendationServiceUrl` | http://localhost:8086 | AI Recommendation Service (RuleEngine & LLM) |
+| `notificationServiceUrl` | http://localhost:8087 | Notification Service (Kafka consumer) |
+| `accessToken` / `userId` | *(Tự động điền)* | JWT Token và UUID của Customer |
+| `ownerAccessToken` / `ownerId` | *(Tự động điền)* | JWT Token và UUID của Restaurant Owner |
+| `restaurantId` | *(Tự động điền)* | UUID nhà hàng đang thao tác |
+| `menuItemId` | *(Tự động điền)* | UUID món ăn đang thao tác |
+| `orderId` | *(Tự động điền)* | UUID đơn hàng vừa tạo |
+| `paymentId` | *(Tự động điền)* | UUID giao dịch thanh toán |
+| `vnpayPaymentUrl` | *(Tự động điền)* | URL thanh toán sandbox được VNPay cấp phát |
