@@ -1,0 +1,44 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  # Nới giới hạn multipart để nhận ảnh upload tới 5MB.
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 6MB
+      file-size-threshold: 1MB
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+# PHẢI giống jwt.secret mà api-gateway dùng để verify token (xem config-server/config/application.yml)
+jwt:
+  secret: ${JWT_SECRET:nomnom_super_secret_change_in_production_min_32_chars}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# Google OAuth — đăng ký tại https://console.cloud.google.com/apis/credentials
+# Nếu để trống, endpoint /api/auth/google sẽ trả 503.
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
+
+# Lưu trữ avatar upload lên disk.
+# Khi chạy trong Docker, thư mục này được bind volume ra host (xem docker-compose.yml).
+nomnom:
+  avatar:
+    upload-dir: ${AVATAR_UPLOAD_DIR:/app/uploads/avatars}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

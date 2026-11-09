@@ -1,0 +1,20 @@
+# Config dùng chung cho TẤT CẢ service (Spring Cloud Config "application" fallback)
+# Mỗi <service>.yml sẽ override/bổ sung phần riêng.
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# JWT secret — PHẢI giống nhau giữa user-service (ký token) và api-gateway (verify)
+jwt:
+  secret: ${JWT_SECRET:nomnom_super_secret_change_in_production_min_32_chars}
+  expiration: ${JWT_EXPIRATION:86400000}   # 24h (ms)

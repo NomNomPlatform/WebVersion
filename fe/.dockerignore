@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+.git
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
