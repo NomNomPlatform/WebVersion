@@ -1,0 +1,685 @@
+{
+  "info": {
+    "name": "NomNom Food Ordering Platform",
+    "description": "API test collection cho NomNom. Auth (register/login) va cac request goi qua gateway ({{gatewayUrl}}) dung {{accessToken}}. Cac service con lai hien chua co JWT filter rieng nen duoc goi truc tiep toi tung service (vd {{restaurantServiceUrl}}) va tu set header X-User-Id / X-User-Role (binh thuong do API Gateway inject sau khi validate JWT).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8080" },
+    { "key": "userServiceUrl", "value": "http://localhost:8081" },
+    { "key": "restaurantServiceUrl", "value": "http://localhost:8082" },
+    { "key": "orderServiceUrl", "value": "http://localhost:8083" },
+    { "key": "menuServiceUrl", "value": "http://localhost:8084" },
+    { "key": "paymentServiceUrl", "value": "http://localhost:8085" },
+    { "key": "recommendationServiceUrl", "value": "http://localhost:8086" },
+    { "key": "notificationServiceUrl", "value": "http://localhost:8087" },
+    { "key": "accessToken", "value": "" },
+    { "key": "ownerAccessToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "ownerId", "value": "" },
+    { "key": "restaurantId", "value": "" },
+    { "key": "menuItemId", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "paymentId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "User Service",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Register Customer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"customer1@nomnom.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"Nguyen Van A\",\n  \"role\": \"CUSTOMER\"\n}"
+                },
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/auth/register",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Register Restaurant Owner",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"owner1@nomnom.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"Tran Thi B\",\n  \"role\": \"RESTAURANT_OWNER\"\n}"
+                },
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/auth/register",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Login Customer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.token) {",
+                      "    pm.collectionVariables.set('accessToken', res.token);",
+                      "    pm.environment.set('accessToken', res.token);",
+                      "}",
+                      "if (res.userId) {",
+                      "    pm.collectionVariables.set('userId', res.userId);",
+                      "    pm.environment.set('userId', res.userId);",
+                      "}",
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"customer1@nomnom.com\",\n  \"password\": \"Password123!\"\n}"
+                },
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/auth/login",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Login Restaurant Owner",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.token) {",
+                      "    pm.collectionVariables.set('ownerAccessToken', res.token);",
+                      "    pm.environment.set('ownerAccessToken', res.token);",
+                      "}",
+                      "if (res.userId) {",
+                      "    pm.collectionVariables.set('ownerId', res.userId);",
+                      "    pm.environment.set('ownerId', res.userId);",
+                      "}",
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"owner1@nomnom.com\",\n  \"password\": \"Password123!\"\n}"
+                },
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/auth/login",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "Get My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/users/me",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "users", "me"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update My Profile",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"height\": 175.0,\n  \"weight\": 68.5,\n  \"age\": 28,\n  \"gender\": \"MALE\",\n  \"activityLevel\": \"MODERATE\"\n}"
+                },
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/users/me",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "users", "me"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get My Health Metrics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": {
+                  "raw": "{{userServiceUrl}}/api/users/me/health",
+                  "host": ["{{userServiceUrl}}"],
+                  "path": ["api", "users", "me", "health"]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Restaurant Service",
+      "item": [
+        {
+          "name": "List Restaurants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{restaurantServiceUrl}}/api/restaurants?page=0&size=10",
+              "host": ["{{restaurantServiceUrl}}"],
+              "path": ["api", "restaurants"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Restaurant By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{restaurantServiceUrl}}/api/restaurants/{{restaurantId}}",
+              "host": ["{{restaurantServiceUrl}}"],
+              "path": ["api", "restaurants", "{{restaurantId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Restaurant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "    pm.collectionVariables.set('restaurantId', res.id);",
+                  "    pm.environment.set('restaurantId', res.id);",
+                  "}",
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Com Tam Suon Nuong\",\n  \"description\": \"Quan com tam ngon o Q1\",\n  \"address\": \"123 Nguyen Trai, Q1, TP.HCM\",\n  \"phone\": \"0901234567\",\n  \"cuisineType\": \"VIETNAMESE\",\n  \"imageUrl\": \"https://example.com/restaurant.jpg\",\n  \"operatingHours\": [\n    { \"dayOfWeek\": \"MONDAY\", \"openTime\": \"08:00\", \"closeTime\": \"21:00\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{restaurantServiceUrl}}/api/restaurants",
+              "host": ["{{restaurantServiceUrl}}"],
+              "path": ["api", "restaurants"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Restaurant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Com Tam Suon Nuong (Updated)\",\n  \"description\": \"Quan com tam ngon o Q1 - da cap nhat\",\n  \"address\": \"123 Nguyen Trai, Q1, TP.HCM\",\n  \"phone\": \"0901234567\",\n  \"cuisineType\": \"VIETNAMESE\",\n  \"imageUrl\": \"https://example.com/restaurant.jpg\",\n  \"operatingHours\": [\n    { \"dayOfWeek\": \"MONDAY\", \"openTime\": \"08:00\", \"closeTime\": \"22:00\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{restaurantServiceUrl}}/api/restaurants/{{restaurantId}}",
+              "host": ["{{restaurantServiceUrl}}"],
+              "path": ["api", "restaurants", "{{restaurantId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Restaurant",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "url": {
+              "raw": "{{restaurantServiceUrl}}/api/restaurants/{{restaurantId}}",
+              "host": ["{{restaurantServiceUrl}}"],
+              "path": ["api", "restaurants", "{{restaurantId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Menu Service",
+      "item": [
+        {
+          "name": "List Menu Items By Restaurant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{menuServiceUrl}}/api/restaurants/{{restaurantId}}/items?page=0&size=10",
+              "host": ["{{menuServiceUrl}}"],
+              "path": ["api", "restaurants", "{{restaurantId}}", "items"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "category", "value": "MAIN", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Menu Item By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{menuServiceUrl}}/api/items/{{menuItemId}}",
+              "host": ["{{menuServiceUrl}}"],
+              "path": ["api", "items", "{{menuItemId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Menu Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "    pm.collectionVariables.set('menuItemId', res.id);",
+                  "    pm.environment.set('menuItemId', res.id);",
+                  "}",
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Com Tam Suon Bi Cha\",\n  \"description\": \"Com tam day du topping\",\n  \"price\": 55000,\n  \"calories\": 750,\n  \"proteinG\": 35.5,\n  \"carbG\": 90.0,\n  \"fatG\": 20.0,\n  \"category\": \"MAIN\",\n  \"imageUrl\": \"https://example.com/item.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{menuServiceUrl}}/api/restaurants/{{restaurantId}}/items",
+              "host": ["{{menuServiceUrl}}"],
+              "path": ["api", "restaurants", "{{restaurantId}}", "items"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Menu Item",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Com Tam Suon Bi Cha (Updated)\",\n  \"description\": \"Com tam day du topping - gia moi\",\n  \"price\": 60000,\n  \"calories\": 750,\n  \"proteinG\": 35.5,\n  \"carbG\": 90.0,\n  \"fatG\": 20.0,\n  \"category\": \"MAIN\",\n  \"imageUrl\": \"https://example.com/item.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{menuServiceUrl}}/api/items/{{menuItemId}}",
+              "host": ["{{menuServiceUrl}}"],
+              "path": ["api", "items", "{{menuItemId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Menu Item",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "url": {
+              "raw": "{{menuServiceUrl}}/api/items/{{menuItemId}}",
+              "host": ["{{menuServiceUrl}}"],
+              "path": ["api", "items", "{{menuItemId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Order Service",
+      "item": [
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "    pm.collectionVariables.set('orderId', res.id);",
+                  "    pm.environment.set('orderId', res.id);",
+                  "}",
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"items\": [\n    {\n      \"menuItemId\": \"{{menuItemId}}\",\n      \"name\": \"Com Tam Suon Bi Cha\",\n      \"quantity\": 2,\n      \"unitPrice\": 55000,\n      \"calories\": 750\n    }\n  ],\n  \"deliveryAddress\": \"456 Le Loi, Q1, TP.HCM\",\n  \"note\": \"Khong hanh\"\n}"
+            },
+            "url": {
+              "raw": "{{orderServiceUrl}}/api/orders",
+              "host": ["{{orderServiceUrl}}"],
+              "path": ["api", "orders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}",
+              "host": ["{{orderServiceUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" }
+            ],
+            "url": {
+              "raw": "{{orderServiceUrl}}/api/orders/me?page=0&size=10",
+              "host": ["{{orderServiceUrl}}"],
+              "path": ["api", "orders", "me"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order Status (Owner)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Id", "value": "{{ownerId}}" },
+              { "key": "X-User-Role", "value": "RESTAURANT_OWNER" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"READY\"\n}"
+            },
+            "url": {
+              "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}/status",
+              "host": ["{{orderServiceUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Order (Pending only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" }
+            ],
+            "url": {
+              "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}",
+              "host": ["{{orderServiceUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payment Service",
+      "item": [
+        {
+          "name": "Process Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "    pm.collectionVariables.set('paymentId', res.id);",
+                  "    pm.environment.set('paymentId', res.id);",
+                  "}",
+                  "pm.test('Status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 110000\n}"
+            },
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment By Order Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/{{orderId}}",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "{{orderId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/{{paymentId}}/refund",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "{{paymentId}}", "refund"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notification Service",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" }
+            ],
+            "url": {
+              "raw": "{{notificationServiceUrl}}/api/notifications?page=0&size=20",
+              "host": ["{{notificationServiceUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification As Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" }
+            ],
+            "url": {
+              "raw": "{{notificationServiceUrl}}/api/notifications/:id/read",
+              "host": ["{{notificationServiceUrl}}"],
+              "path": ["api", "notifications", ":id", "read"],
+              "variable": [
+                { "key": "id", "value": "" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Infrastructure",
+      "item": [
+        {
+          "name": "Eureka Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8761",
+              "host": ["localhost"],
+              "port": "8761"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Config Server - user-service config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8888/user-service/default",
+              "host": ["localhost"],
+              "port": "8888",
+              "path": ["user-service", "default"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
