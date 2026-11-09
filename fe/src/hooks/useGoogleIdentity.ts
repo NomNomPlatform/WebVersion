@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const GOOGLE_SCRIPT_ID = "google-identity-services";
 const GOOGLE_SRC = "https://accounts.google.com/gsi/client";
