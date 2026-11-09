@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/payment_db
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: payment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.nomnom.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# ── VNPay Sandbox Configuration ─────────────────────────────────────────────
+# Thay thế bằng credentials thực khi deploy production
+payment:
+  vnpay:
+    tmn-code: ${VNPAY_TMN_CODE:}
+    hash-secret: ${VNPAY_HASH_SECRET:}
+    url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+    # URL callback đi qua Gateway (payment-service nhận xử lý)
+    return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/payments/vnpay/callback}
+    # Trang kết quả thanh toán trên React Frontend
+    frontend-url: ${FRONTEND_URL:http://localhost:5173}/payment/return
+    # Giá VND nhân thêm 100 theo quy định VNPay (đơn vị VNPay là 1/100 VND)
+    # Ví dụ: 50000₫ -> gửi 5000000 sang VNPay
+    amount-multiplier: 100
