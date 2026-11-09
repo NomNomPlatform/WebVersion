@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { menuApi, type MenuItemPayload } from "@/api/menu";
 import { restaurantsApi } from "@/api/restaurants";
 import type { Category, MenuItem } from "@/types";
+import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function MenuManagement() {
@@ -310,7 +311,7 @@ export function MenuManagement() {
                         }`}
                     />
                     <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-extrabold text-[#181c20] shadow-sm">
-                      ${item.price}
+                      {formatCurrency(item.price)}
                     </div>
                     {!item.isAvailable && (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -458,10 +459,12 @@ export function MenuManagement() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Price ($)</Label>
+                  <Label>Price (₫)</Label>
                   <Input
                     type="number"
-                    step="0.1"
+                    min="0"
+                    step="1000"
+                    placeholder="e.g. 45000"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
                   />
