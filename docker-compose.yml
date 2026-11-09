@@ -1,0 +1,533 @@
+# ═══════════════════════════════════════════════════════════════
+#  NomNom Food Ordering Platform — Docker Compose (Full Stack)
+# ═══════════════════════════════════════════════════════════════
+#  Khởi động toàn bộ hệ thống chỉ với 1 lệnh:
+#    docker compose up -d --build
+#
+#  Dừng hệ thống:
+#    docker compose down
+#
+#  Xem logs:
+#    docker compose logs -f <service-name>
+# ═══════════════════════════════════════════════════════════════
+
+# ASCII-only. Do NOT save this file with PowerShell Set-Content (causes UTF-8 encoding issues).
+# Use docker-compose.logs.yml instead OR edit with this anchor carefully.
+#
+# Log rotation + Eureka log level — giam log spam (Eureka mac dinh in INFO moi 30s).
+x-log-limit: &log-limit
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  #  INFRASTRUCTURE — Database / Message Broker / Cache
+  # ─────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    <<: *log-limit
+    container_name: nomnom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nomnom-network
+
+  mongodb:
+    image: mongo:7
+    <<: *log-limit
+    container_name: nomnom-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nomnom-network
+
+  redis:
+    image: redis:7-alpine
+    <<: *log-limit
+    container_name: nomnom-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nomnom-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    <<: *log-limit
+    container_name: nomnom-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - nomnom-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    <<: *log-limit
+    container_name: nomnom-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:29092,OUTSIDE://localhost:9092
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - nomnom-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    <<: *log-limit
+    container_name: nomnom-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nomnom-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - nomnom-network
+
+  # ─────────────────────────────────────────────────────────────
+  #  SPRING CLOUD INFRASTRUCTURE
+  # ─────────────────────────────────────────────────────────────
+
+  config-server:
+    build:
+      context: .
+      dockerfile: infrastructure/config-server/Dockerfile
+    image: nomnom/config-server:latest
+    <<: *log-limit
+    container_name: nomnom-config-server
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      # Trong Docker, các service gọi nhau bằng container name
+      POSTGRES_HOST: postgres
+      MONGO_HOST: mongodb
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      # VNPay credentials + return URL (config-server resolve từ các placeholder).
+      # Đặt trong .env. return-url phải là URL ngrok public trỏ về API Gateway (8080).
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:8080/api/payments/vnpay/callback}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8888/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - nomnom-network
+
+  eureka-server:
+    build:
+      context: .
+      dockerfile: infrastructure/eureka-server/Dockerfile
+    image: nomnom/eureka-server:latest
+    <<: *log-limit
+    container_name: nomnom-eureka-server
+    restart: unless-stopped
+    depends_on:
+      config-server:
+        condition: service_healthy
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - nomnom-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/api-gateway/Dockerfile
+    image: nomnom/api-gateway:latest
+    <<: *log-limit
+    container_name: nomnom-api-gateway
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      JWT_SECRET: ${JWT_SECRET:-nomnom_super_secret_change_in_production_min_32_chars}
+      # Cho phép frontend container gọi tới gateway
+      SPRING_CLOUD_GATEWAY_GLOBALCORS_CORS__CONFIGURATIONS_[/**]_ALLOWEDORIGINS: "http://localhost:3000,http://localhost:5173"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - nomnom-network
+
+  # ─────────────────────────────────────────────────────────────
+  #  BUSINESS SERVICES
+  # ─────────────────────────────────────────────────────────────
+
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    image: nomnom/user-service:latest
+    <<: *log-limit
+    container_name: nomnom-user-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-nomnom_super_secret_change_in_production_min_32_chars}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Thư mục lưu avatar upload — bind volume bên dưới để dữ liệu không mất khi restart.
+      AVATAR_UPLOAD_DIR: /app/uploads/avatars
+    volumes:
+      # Lưu file avatar ra host để giữ qua các lần khởi động lại container.
+      - avatar_uploads:/app/uploads/avatars
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  restaurant-service:
+    build:
+      context: .
+      dockerfile: services/restaurant-service/Dockerfile
+    image: nomnom/restaurant-service:latest
+    <<: *log-limit
+    container_name: nomnom-restaurant-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  order-service:
+    build:
+      context: .
+      dockerfile: services/order-service/Dockerfile
+    image: nomnom/order-service:latest
+    <<: *log-limit
+    container_name: nomnom-order-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  menu-service:
+    build:
+      context: .
+      dockerfile: services/menu-service/Dockerfile
+    image: nomnom/menu-service:latest
+    <<: *log-limit
+    container_name: nomnom-menu-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/menu_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8084/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    image: nomnom/payment-service:latest
+    <<: *log-limit
+    container_name: nomnom-payment-service
+    restart: unless-stopped
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # VNPay — payment-service tự resolve các placeholder ${...} trong config,
+      # nên credentials phải có mặt ở chính container này (không chỉ config-server).
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:8080/api/payments/vnpay/callback}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8085/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  recommendation-service:
+    build:
+      context: .
+      dockerfile: services/recommendation-service/Dockerfile
+    image: nomnom/recommendation-service:latest
+    <<: *log-limit
+    container_name: nomnom-recommendation-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:mongo@mongodb:27017/recommendation_logs?authSource=admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8086/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    image: nomnom/notification-service:latest
+    <<: *log-limit
+    container_name: nomnom-notification-service
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      LOGGING_LEVEL_COM_NETFLIX_EUREKA_CLIENT: WARN
+      LOGGING_LEVEL_COM_NETFLIX_DISCOVERY: WARN
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8087/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - nomnom-network
+
+  # ─────────────────────────────────────────────────────────────
+  #  FRONTEND
+  # ─────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./fe
+      dockerfile: Dockerfile
+      args:
+        # OAuth Google — đăng nhập 1-click trên FE. Lấy tại Google Cloud Console.
+        # Nếu để trống, nút Google sẽ hiển thị disabled kèm thông báo.
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    image: nomnom/frontend:latest
+    <<: *log-limit
+    container_name: nomnom-frontend
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    # Cho phép nginx trong container gọi tới API Gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - nomnom-network
+
+# ─────────────────────────────────────────────────────────────
+#  VOLUMES & NETWORKS
+# ─────────────────────────────────────────────────────────────
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  avatar_uploads:
+
+networks:
+  nomnom-network:
+    driver: bridge
