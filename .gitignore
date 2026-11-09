@@ -1,0 +1,54 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VSCode
+.vscode/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+*.docx
+
+# Docker volumes (local data)
+postgres_data/
+mongo_data/
+redis_data/
+
+# Node.js (frontend)
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# File uploads / storage
+uploads/
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.g.dart
