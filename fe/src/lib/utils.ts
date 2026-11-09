@@ -6,12 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Format số tiền VND, vd 45000 -> "45.000 ₫" */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(amount ?? 0);
 }
 
 /** Format calo, vd 320 -> "320 kcal" */
