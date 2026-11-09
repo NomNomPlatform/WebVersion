@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════════════════
+#  LOG LIMIT OVERRIDE - ngăn docker-desktop-data.vhdx phình to
+# ═══════════════════════════════════════════════════════════════
+#
+#  Vấn đề: Mặc định Docker giữ log unbounded (json-file, map[]).
+#  Khi app spam log -> file -json.log phình đến hàng chục GB
+#  -> WSL2 vhdx expand đến hàng chục GB, KHÔNG tự co lại.
+#
+#  Cách dùng:
+#    docker compose -f docker-compose.yml -f docker-compose.logs.yml up -d
+#
+#  Apply log limit cho tất cả 17 container NomNom, đặc biệt
+#  notification-service đã từng spam 74 GB log.
+# ═══════════════════════════════════════════════════════════════
+
+# Áp log limit cho tất cả container NomNom
+x-log-limit: &log-limit
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"   # tối đa 10 MB mỗi file log
+      max-file: "3"     # giữ 3 file log rotate
+
+services:
+  # ── Microservices (các services viết log nhiều nhất) ──
+  notification-service:
+    <<: *log-limit
+
+  order-service:
+    <<: *log-limit
+
+  user-service:
+    <<: *log-limit
+
+  restaurant-service:
+    <<: *log-limit
+
+  menu-service:
+    <<: *log-limit
+
+  payment-service:
+    <<: *log-limit
+
+  recommendation-service:
+    <<: *log-limit
+
+  api-gateway:
+    <<: *log-limit
+
+  # ── Infrastructure (log ít nhưng vẫn nên cap) ──
+  eureka-server:
+    <<: *log-limit
+
+  config-server:
+    <<: *log-limit
+
+  postgres:
+    <<: *log-limit
+
+  mongodb:
+    <<: *log-limit
+
+  redis:
+    <<: *log-limit
+
+  zookeeper:
+    <<: *log-limit
+
+  kafka:
+    <<: *log-limit
+
+  kafka-ui:
+    <<: *log-limit
+
+  frontend:
+    <<: *log-limit
