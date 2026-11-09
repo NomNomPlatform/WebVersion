@@ -1,0 +1,109 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:5173"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/auth/**,/api/users/**
+
+        # menu-service phải đứng TRƯỚC restaurant-service vì /api/restaurants/*/items/**
+        # là tập con của /api/restaurants/** — route khớp đầu tiên sẽ được lấy.
+        - id: menu-service
+          uri: lb://menu-service
+          predicates:
+            - Path=/api/restaurants/*/items/**,/api/items/**
+
+        - id: restaurant-service
+          uri: lb://restaurant-service
+          predicates:
+            - Path=/api/restaurants/**
+
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            # Retry khi downstream trả 503 (Eureka propagation race) hoặc IO error.
+            # Retry tối đa 3 lần, mỗi lần cách 500ms.
+            - name: Retry
+              args:
+                retries: 3
+                statuses: SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET,POST,PUT,DELETE,PATCH
+                backoff:
+                  firstBackoff: 500ms
+                  maxBackoff: 2s
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET,POST,PUT,DELETE,PATCH
+                backoff:
+                  firstBackoff: 500ms
+                  maxBackoff: 2s
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: recommendation-service
+          uri: lb://recommendation-service
+          predicates:
+            - Path=/api/recommendations/**
+
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: Retry
+              args:
+                retries: 3
+                statuses: SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET,POST,PUT,DELETE,PATCH
+                backoff:
+                  firstBackoff: 500ms
+                  maxBackoff: 2s
+                  factor: 2
+                  basedOnPreviousValue: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
+    # Fetch registry thường xuyên hơn (mặc định 30s) để phát hiện service mới/up nhanh hơn.
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+    # Lease renewal nhanh hơn để registry "thấy" instance ngay khi start.
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 15
+
+# PHẢI giống jwt.secret mà user-service dùng để ký token
+jwt:
+  secret: ${JWT_SECRET:nomnom_super_secret_change_in_production_min_32_chars}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
