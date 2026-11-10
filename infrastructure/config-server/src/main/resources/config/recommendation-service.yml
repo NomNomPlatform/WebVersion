@@ -12,12 +12,12 @@ nomnom:
   ai:
     groq:
       api-key: "${GROQ_API_KEY:}"
-      model: llama-3.3-70b-versatile
+      model: openai/gpt-oss-20b
       base-url: https://api.groq.com/openai/v1
     gemini:
       api-key: "${GEMINI_API_KEY:}"
-      model: gemini-2.0-flash
+      model: gemini-flash-lite-latest
     order:
       - groq
       - gemini
-    timeout-ms: 5000
+    timeout-ms: 10000
