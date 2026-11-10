@@ -1,12 +1,23 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ShoppingBag, ChevronDown, Calendar } from "lucide-react";
+import {
+  Search, ShoppingBag, ChevronDown, Calendar,
+  MapPin, FileText, User as UserIcon, Store, Copy, Check, Utensils
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { ordersApi } from "@/api/orders";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 import type { OrderStatus, Order } from "@/types";
 
 const STATUS_FILTERS: Array<"ALL" | OrderStatus> = [
@@ -46,12 +57,30 @@ export function AdminOrdersOverview() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | OrderStatus>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const PAGE_SIZE = 15;
 
   const { data: orderPage, isLoading } = useQuery({
     queryKey: ["admin-orders", currentPage],
     queryFn: () => ordersApi.listAllForAdmin(currentPage, PAGE_SIZE),
   });
+
+  const { data: orderDetail, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ["admin-order-detail", selectedOrder?.id],
+    queryFn: () => ordersApi.get(selectedOrder!.id),
+    enabled: !!selectedOrder?.id && isDetailOpen,
+  });
+
+  const activeOrder = orderDetail || selectedOrder;
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    toast.success(`Đã sao chép ${label}!`);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   const orders = orderPage?.content || [];
   const totalPages = orderPage?.totalPages ?? 1;
@@ -168,7 +197,15 @@ export function AdminOrdersOverview() {
                       {formatCurrency(order.totalAmount)}
                     </td>
                     <td className="p-4 pr-6 text-right">
-                      <Button variant="outline" size="sm" className="rounded-lg">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg hover:border-[#ab3500] hover:text-[#ab3500] font-semibold"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setIsDetailOpen(true);
+                        }}
+                      >
                         View
                       </Button>
                     </td>
@@ -208,6 +245,181 @@ export function AdminOrdersOverview() {
           </div>
         </div>
       </Card>
+
+      {/* Order Details Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+          <DialogHeader className="pb-3 border-b border-slate-100">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900">
+              <ShoppingBag className="w-5 h-5 text-[#ab3500]" />
+              Chi tiết đơn hàng
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 text-xs mt-0.5">
+              Xem toàn bộ thông tin thanh toán, địa chỉ và món ăn trong đơn hàng.
+            </DialogDescription>
+          </DialogHeader>
+
+          {activeOrder && (
+            <div className="space-y-5 pt-3">
+              {/* Order Primary Card */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#ffdbd0]/20 border border-[#ab3500]/20">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-bold text-slate-900 text-base">
+                      #{activeOrder.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(activeOrder.id, "Mã đơn hàng")}
+                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors"
+                      title="Sao chép Order ID"
+                    >
+                      {copiedField === "Mã đơn hàng" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <OrderStatusBadge status={activeOrder.status} />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    Đặt lúc: {new Date(activeOrder.createdAt).toLocaleString("vi-VN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  <p className="text-xs text-slate-500 font-medium">Tổng thanh toán</p>
+                  <p className="text-2xl font-extrabold text-[#ab3500]">
+                    {formatCurrency(activeOrder.totalAmount)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Delivery & Parties Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Khách hàng
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono text-slate-700 truncate">
+                      {activeOrder.customerId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(activeOrder.customerId, "Customer ID")}
+                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded shrink-0 transition-colors"
+                      title="Sao chép Customer ID"
+                    >
+                      {copiedField === "Customer ID" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-200/60">
+                    <p className="text-[11px] text-slate-400 font-medium">Địa chỉ giao:</p>
+                    <p className="text-xs font-medium text-slate-800 mt-0.5 flex items-start gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                      <span>{activeOrder.deliveryAddress || "Không có địa chỉ"}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-slate-400" /> Nhà hàng
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono text-slate-700 truncate">
+                      {activeOrder.restaurantId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(activeOrder.restaurantId, "Restaurant ID")}
+                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded shrink-0 transition-colors"
+                      title="Sao chép Restaurant ID"
+                    >
+                      {copiedField === "Restaurant ID" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-200/60">
+                    <p className="text-[11px] text-slate-400 font-medium">Ghi chú của khách:</p>
+                    <p className="text-xs text-slate-700 italic mt-0.5 flex items-start gap-1">
+                      <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span>{activeOrder.note || "Không có ghi chú"}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Items */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Utensils className="w-4 h-4 text-[#ab3500]" /> Danh sách món ăn
+                  </h4>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {activeOrder.items?.length || 0} món
+                  </span>
+                </div>
+
+                <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
+                  {isLoadingDetail ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">
+                      <div className="w-6 h-6 border-2 border-slate-300 border-t-[#ab3500] rounded-full animate-spin mx-auto mb-2" />
+                      Đang tải danh sách món...
+                    </div>
+                  ) : !activeOrder.items || activeOrder.items.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">
+                      Không có thông tin chi tiết món ăn trong đơn này.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3 pl-4">Món ăn</th>
+                          <th className="p-3 text-center">SL</th>
+                          <th className="p-3 text-right">Đơn giá</th>
+                          <th className="p-3 pr-4 text-right">Thành tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {activeOrder.items.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="p-3 pl-4 font-semibold text-slate-800">
+                              {item.name}
+                            </td>
+                            <td className="p-3 text-center font-bold text-slate-600">
+                              ×{item.quantity}
+                            </td>
+                            <td className="p-3 text-right text-slate-500">
+                              {formatCurrency(item.unitPrice)}
+                            </td>
+                            <td className="p-3 pr-4 text-right font-bold text-slate-900">
+                              {formatCurrency(item.unitPrice * item.quantity)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer action */}
+              <div className="pt-2 flex justify-end">
+                <Button
+                  onClick={() => setIsDetailOpen(false)}
+                  className="bg-[#006a62] hover:bg-[#00524d] text-white rounded-xl font-bold px-6 h-10"
+                >
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
