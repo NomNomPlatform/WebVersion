@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { Payment, InitiatePaymentPayload } from "@/types";
+import type { Payment, PaymentAnalytics, InitiatePaymentPayload } from "@/types";
 
 /**
  * paymentsApi — wraps the 3 payment endpoints exposed by payment-service via gateway.
@@ -23,5 +23,11 @@ export const paymentsApi = {
   refund: (paymentId: string) =>
     apiClient
       .post<Payment>(`/payments/${paymentId}/refund`)
+      .then((r) => r.data),
+
+  /** Fetch platform-wide payment analytics (Admin only). */
+  adminAnalytics: (days = 30) =>
+    apiClient
+      .get<PaymentAnalytics>("/payments/admin/analytics", { params: { days } })
       .then((r) => r.data),
 };

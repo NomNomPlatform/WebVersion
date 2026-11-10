@@ -222,4 +222,46 @@ class PaymentServiceTest {
                 .isInstanceOf(PaymentRefundException.class)
                 .hasMessageContaining("PENDING");
     }
+
+    @Test
+    @DisplayName("getAdminAnalytics: aggregates counts, amounts, and method breakdown")
+    void getAdminAnalytics_aggregatesCorrectly() {
+        Payment p1 = Payment.builder()
+                .id(UUID.randomUUID())
+                .orderId(UUID.randomUUID())
+                .amount(new BigDecimal("120000"))
+                .status(PaymentStatus.COMPLETED)
+                .paymentMethod(PaymentMethod.VNPAY)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Payment p2 = Payment.builder()
+                .id(UUID.randomUUID())
+                .orderId(UUID.randomUUID())
+                .amount(new BigDecimal("80000"))
+                .status(PaymentStatus.COMPLETED)
+                .paymentMethod(PaymentMethod.CASH)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Payment p3 = Payment.builder()
+                .id(UUID.randomUUID())
+                .orderId(UUID.randomUUID())
+                .amount(new BigDecimal("50000"))
+                .status(PaymentStatus.REFUNDED)
+                .paymentMethod(PaymentMethod.CARD)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(paymentRepository.findByCreatedAtGreaterThanEqual(any(LocalDateTime.class)))
+                .thenReturn(java.util.List.of(p1, p2, p3));
+
+        var res = paymentService.getAdminAnalytics(30);
+
+        assertThat(res.days()).isEqualTo(30);
+        assertThat(res.totalTransactions()).isEqualTo(3);
+        assertThat(res.completedCount()).isEqualTo(2);
+        assertThat(res.refundedCount()).isEqualTo(1);
+        assertThat(res.totalCompletedAmount()).isEqualByComparingTo("200000");
+        assertThat(res.totalRefundedAmount()).isEqualByComparingTo("50000");
+        assertThat(res.methodBreakdown()).hasSize(3);
+    }
 }

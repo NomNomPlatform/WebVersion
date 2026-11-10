@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { Order, OrderStatus, PageResponse } from "@/types";
+import type { Order, OrderAnalytics, OrderStatus, PageResponse } from "@/types";
 
 export interface CreateOrderPayload {
   restaurantId: string;
@@ -53,4 +53,16 @@ export const ordersApi = {
 
   cancel: (id: string) =>
     apiClient.delete(`/orders/${id}`).then((r) => r.data),
+
+  restaurantAnalytics: (restaurantId: string, days = 30) =>
+    apiClient
+      .get<OrderAnalytics>(`/orders/restaurant/${restaurantId}/analytics`, {
+        params: { days },
+      })
+      .then((r) => r.data),
+
+  adminAnalytics: (days = 30) =>
+    apiClient
+      .get<OrderAnalytics>("/orders/admin/analytics", { params: { days } })
+      .then((r) => r.data),
 };

@@ -129,8 +129,8 @@ function QuickNavCard({
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 const PENDING_STATUSES: OrderStatus[] = ["PENDING"];
-const ACTIVE_STATUSES: OrderStatus[] = ["PENDING", "CONFIRMED"];
-const REVENUE_STATUSES: OrderStatus[] = ["CONFIRMED", "READY"];
+const ACTIVE_STATUSES: OrderStatus[] = ["PENDING", "CONFIRMED", "READY", "SHIPPING"];
+const REVENUE_STATUSES: OrderStatus[] = ["CONFIRMED", "READY", "SHIPPING", "DELIVERED"];
 
 function statusLabel(status: OrderStatus): string {
   switch (status) {
@@ -324,7 +324,7 @@ export function OwnerOverview() {
           icon={Banknote}
           colorClass="text-[#ab3500]"
           bgClass="bg-[#ab3500]/10"
-          sub="Tổng các đơn CONFIRMED + READY"
+          sub="Tổng các đơn đã xác nhận & giao"
         />
         <KpiCard
           label="Trạng thái"
