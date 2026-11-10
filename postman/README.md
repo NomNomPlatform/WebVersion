@@ -41,19 +41,19 @@ Kiểm thử quy trình vận hành quán ăn từ phía Chủ nhà hàng:
 ### 🥗 Scenario 3: AI Health Profiling & Meal Recommendation
 Kiểm thử tính năng tính toán dinh dưỡng và gợi ý món ăn thông minh bằng AI:
 - **3.1 Login Customer:** Xác thực phiên làm việc của khách hàng.
-- **3.2 Update User Health Metrics:** Cập nhật chiều cao, cân nặng, giới tính, mức độ vận động và mục tiêu thể hình.
-- **3.3 Verify User Health Profile Summary:** Kiểm tra các chỉ số chuyển hóa được tính toán tự động (BMR, TDEE, Calo khuyến nghị).
+- **3.2 Update User Health Metrics:** Cập nhật chiều cao, cân nặng, tuổi, giới tính và mức độ vận động.
+- **3.3 Verify User Health Profile Summary:** Kiểm tra các chỉ số chuyển hóa được tính toán tự động (BMI, TDEE, Calorie Goal).
 - **3.4 Check AI Recommendation Service Capability:** Kiểm tra trạng thái sẵn sàng của AI Service và danh sách AI Providers đang bật (Groq / Gemini).
 - **3.5 Generate AI Meal Recommendation:** Gửi yêu cầu AI xếp hạng món ăn phù hợp với bữa trưa (LUNCH) và mức calo mục tiêu kèm giải thích lý do gợi ý.
 - **3.6 Review Recommendation Audit History:** Kiểm tra nhật ký gợi ý đã được lưu trữ vào MongoDB RecommendationLog.
 
 ### 🛡️ Scenario 4: Security, Negative Cases & Role Access Control
 Kiểm thử bảo mật, phân quyền RBAC và xử lý ngoại lệ:
-- **4.1 Unauthorized Access to Orders without Token:** Gọi API yêu cầu xác thực mà không truyền token -> Mong đợi `401 Unauthorized` hoặc `400`.
+- **4.1 Unauthorized Access to Orders without Token:** Gọi API qua Gateway không kèm token -> Mong đợi `401 Unauthorized`.
 - **4.2 Customer Accessing Owner Endpoints (Forbidden):** Khách hàng cố tình can thiệp đổi trạng thái đơn của quán -> Mong đợi `403 Forbidden`.
-- **4.3 Login with Wrong Password:** Đăng nhập với mật khẩu sai -> Mong đợi `400` hoặc `401`.
+- **4.3 Login with Wrong Password:** Đăng nhập với mật khẩu sai -> Mong đợi `401 Unauthorized`.
 - **4.4 Retrieve Non-Existent Order:** Tra cứu đơn hàng với UUID không tồn tại -> Mong đợi `404 Not Found`.
-- **4.5 Create Order with Empty Items:** Đặt hàng với giỏ hàng rỗng -> Mong đợi `400 Bad Request`.
+- **4.5 Validation Error (Invalid Payment Amount):** Gửi yêu cầu thanh toán với `amount = 0` -> Mong đợi `400 Bad Request`.
 
 ---
 

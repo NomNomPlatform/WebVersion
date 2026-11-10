@@ -73,7 +73,7 @@
   "item": [
     {
       "name": "🧪 Test Scenarios (Kịch bản kiểm thử tích hợp E2E)",
-      "description": "Tập hợp 4 kịch bản kiểm thử End-to-End tự động liên chuỗi giữa các microservices. Có thể chạy tự động toàn bộ qua Postman Collection Runner hoặc Newman CLI.",
+      "description": "Tập hợp 4 kịch bản kiểm thử End-to-End tự động liên chuỗi giữa các microservices. Có thể chạy tự động toàn bộ qua Postman Collection Runner hoặc Newman CLI, hoặc bấm từng bước để chụp hình báo cáo.",
       "item": [
         {
           "name": "Scenario 1 - Customer Ordering Flow (Full Lifecycle)",
@@ -81,6 +81,46 @@
           "item": [
             {
               "name": "1.1 Login Customer",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.sendRequest({",
+                      "    url: pm.variables.replaceIn('{{userServiceUrl}}/api/auth/register'),",
+                      "    method: 'POST',",
+                      "    header: { 'Content-Type': 'application/json' },",
+                      "    body: {",
+                      "        mode: 'raw',",
+                      "        raw: JSON.stringify({",
+                      "            email: 'customer1@nomnom.com',",
+                      "            password: 'Password123!',",
+                      "            fullName: 'Nguyen Van A',",
+                      "            role: 'CUSTOMER'",
+                      "        })",
+                      "    }",
+                      "}, function () {});"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('1.1 Customer login status is 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "pm.test('JWT token and userId returned', function () {",
+                      "    pm.expect(res.token).to.be.a('string');",
+                      "    pm.expect(res.userId).to.be.a('string');",
+                      "});",
+                      "pm.environment.set('accessToken', res.token);",
+                      "pm.environment.set('userId', res.userId);"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -92,7 +132,7 @@
                 "url": {
                   "raw": "{{userServiceUrl}}/api/auth/login",
                   "host": [
-                    "auth"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -105,25 +145,29 @@
                   "raw": "{\n  \"email\": \"customer1@nomnom.com\",\n  \"password\": \"Password123!\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.2 Browse Available Restaurants",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.1 Customer login status is 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('1.2 Restaurants list returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.expect(res.token).to.be.a(\"string\");",
-                      "pm.environment.set(\"accessToken\", res.token);",
-                      "pm.environment.set(\"userId\", res.userId);"
-                    ],
-                    "type": "text/javascript"
+                      "const list = res.content || res;",
+                      "pm.test('At least 1 approved restaurant exists', function () {",
+                      "    pm.expect(Array.isArray(list)).to.be.true;",
+                      "    pm.expect(list.length).to.be.above(0);",
+                      "});",
+                      "pm.environment.set('restaurantId', list[0].id);",
+                      "pm.environment.set('publicRestaurantId', list[0].id);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.2 Browse Available Restaurants",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -135,33 +179,47 @@
                 "url": {
                   "raw": "{{restaurantServiceUrl}}/api/restaurants?page=0&size=5",
                   "host": [
-                    "restaurants?page=0&size=5"
+                    "{{restaurantServiceUrl}}"
                   ],
                   "path": [
                     "api",
                     "restaurants"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "5"
+                    }
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.3 Browse Restaurant Menu Items",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.2 Restaurants list returned with 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('1.3 Menu items returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
                       "const list = res.content || res;",
-                      "pm.expect(list.length).to.be.above(0);",
-                      "pm.environment.set(\"restaurantId\", list[0].id);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('Restaurant has menu items', function () {",
+                      "    pm.expect(Array.isArray(list)).to.be.true;",
+                      "    pm.expect(list.length).to.be.above(0);",
+                      "});",
+                      "pm.environment.set('menuItemId', list[0].id);",
+                      "pm.environment.set('testItemPrice', list[0].price);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.3 Browse Restaurant Menu Items",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -171,37 +229,52 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{menuServiceUrl}}/api/menu-items/restaurant/{{restaurantId}}",
+                  "raw": "{{menuServiceUrl}}/api/restaurants/{{restaurantId}}/items?page=0&size=10",
                   "host": [
-                    "menu-items"
+                    "{{menuServiceUrl}}"
                   ],
                   "path": [
                     "api",
-                    "menu-items",
-                    "restaurant",
-                    "{{restaurantId}}"
+                    "restaurants",
+                    "{{restaurantId}}",
+                    "items"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.4 Place Order (Customer)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.3 Menu items returned with 200\", function () { pm.response.to.have.status(200); });",
-                      "const list = pm.response.json();",
-                      "pm.expect(list.length).to.be.above(0);",
-                      "pm.environment.set(\"menuItemId\", list[0].id);",
-                      "pm.environment.set(\"testItemPrice\", list[0].price);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('1.4 Order created with status 200 or 201', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                      "});",
+                      "const res = pm.response.json();",
+                      "const order = res.order || res;",
+                      "pm.test('Order id returned and status is PENDING', function () {",
+                      "    pm.expect(order.id).to.be.a('string');",
+                      "    pm.expect(order.status).to.eql('PENDING');",
+                      "});",
+                      "pm.environment.set('orderId', order.id);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.4 Place Order (Customer)",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -221,7 +294,7 @@
                 "url": {
                   "raw": "{{orderServiceUrl}}/api/orders",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -230,30 +303,29 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"deliveryAddress\": \"123 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh\",\n  \"customerNote\": \"Xin thêm tương ớt và khăn giấy\",\n  \"items\": [\n    {\n      \"menuItemId\": \"{{menuItemId}}\",\n      \"quantity\": 2,\n      \"notes\": \"Ít đường\"\n    }\n  ]\n}"
+                  "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"deliveryAddress\": \"123 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh\",\n  \"note\": \"Xin thêm tương ớt và khăn giấy\",\n  \"paymentMethod\": \"VNPAY\",\n  \"items\": [\n    {\n      \"menuItemId\": \"{{menuItemId}}\",\n      \"quantity\": 2\n    }\n  ]\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.5 Verify Order Status is PENDING",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.4 Order created with status 200 or 201\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                      "});",
+                      "pm.test('1.5 Order details returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.expect(res.id).to.be.a(\"string\");",
-                      "pm.environment.set(\"orderId\", res.id);",
-                      "pm.expect(res.status).to.eql(\"PENDING\");"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('Order status is PENDING and totalAmount > 0', function () {",
+                      "    pm.expect(res.status).to.eql('PENDING');",
+                      "    pm.expect(res.totalAmount).to.be.above(0);",
+                      "});"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.5 Verify Order Status is PENDING",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -269,7 +341,7 @@
                 "url": {
                   "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -278,24 +350,30 @@
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.6 Initiate VNPay Payment",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.5 Order details returned with 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('1.6 Payment initiated with 200 or 201', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                      "});",
                       "const res = pm.response.json();",
-                      "pm.expect(res.status).to.eql(\"PENDING\");",
-                      "pm.expect(res.totalAmount).to.be.above(0);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('VNPay sandbox paymentUrl returned', function () {",
+                      "    pm.expect(res.paymentUrl).to.be.a('string');",
+                      "    pm.expect(res.paymentUrl).to.include('sandbox.vnpayment.vn');",
+                      "});",
+                      "pm.environment.set('vnpayPaymentUrl', res.paymentUrl);",
+                      "if (res.id) pm.environment.set('paymentId', res.id);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.6 Initiate VNPay Payment",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -311,7 +389,7 @@
                 "url": {
                   "raw": "{{paymentServiceUrl}}/api/payments",
                   "host": [
-                    "payments"
+                    "{{paymentServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -320,31 +398,29 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 120000,\n  \"paymentMethod\": \"VNPAY\",\n  \"orderInfo\": \"Thanh toan don hang NomNom #{{orderId}}\"\n}"
+                  "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 120000,\n  \"paymentMethod\": \"VNPAY\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "1.7 Check Customer Order Notifications",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"1.6 Payment initiated with 200 or 201\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                      "});",
+                      "pm.test('1.7 Notifications returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "if (res.paymentUrl) {",
-                      "    pm.environment.set(\"vnpayPaymentUrl\", res.paymentUrl);",
-                      "    pm.expect(res.paymentUrl).to.include(\"sandbox.vnpayment.vn\");",
-                      "}"
-                    ],
-                    "type": "text/javascript"
+                      "const list = res.content || res;",
+                      "pm.test('Notification content is a valid array', function () {",
+                      "    pm.expect(Array.isArray(list)).to.be.true;",
+                      "});"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "1.7 Check Customer Order Notifications",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -354,31 +430,27 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{notificationServiceUrl}}/api/notifications/my",
+                  "raw": "{{notificationServiceUrl}}/api/notifications?page=0&size=20",
                   "host": [
-                    "notifications"
+                    "{{notificationServiceUrl}}"
                   ],
                   "path": [
                     "api",
-                    "notifications",
-                    "my"
+                    "notifications"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
                   ]
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"1.7 Notifications returned with 200\", function () { pm.response.to.have.status(200); });",
-                      "const list = pm.response.json();",
-                      "pm.expect(Array.isArray(list)).to.be.true;"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             }
           ]
         },
@@ -388,6 +460,46 @@
           "item": [
             {
               "name": "2.1 Login Restaurant Owner",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.sendRequest({",
+                      "    url: pm.variables.replaceIn('{{userServiceUrl}}/api/auth/register'),",
+                      "    method: 'POST',",
+                      "    header: { 'Content-Type': 'application/json' },",
+                      "    body: {",
+                      "        mode: 'raw',",
+                      "        raw: JSON.stringify({",
+                      "            email: 'owner1@nomnom.com',",
+                      "            password: 'Password123!',",
+                      "            fullName: 'Tran Thi B',",
+                      "            role: 'RESTAURANT_OWNER'",
+                      "        })",
+                      "    }",
+                      "}, function () {});"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('2.1 Owner login status is 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "pm.test('Owner JWT token and ownerId returned', function () {",
+                      "    pm.expect(res.token).to.be.a('string');",
+                      "    pm.expect(res.userId).to.be.a('string');",
+                      "});",
+                      "pm.environment.set('ownerAccessToken', res.token);",
+                      "pm.environment.set('ownerId', res.userId);"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -399,7 +511,7 @@
                 "url": {
                   "raw": "{{userServiceUrl}}/api/auth/login",
                   "host": [
-                    "auth"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -412,25 +524,30 @@
                   "raw": "{\n  \"email\": \"owner1@nomnom.com\",\n  \"password\": \"Password123!\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "2.2 Create Restaurant Profile",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"2.1 Owner login status is 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('2.2 Restaurant created with status 200 or 201', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                      "});",
                       "const res = pm.response.json();",
-                      "pm.expect(res.token).to.be.a(\"string\");",
-                      "pm.environment.set(\"ownerAccessToken\", res.token);",
-                      "pm.environment.set(\"ownerId\", res.userId);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('Restaurant id returned', function () {",
+                      "    pm.expect(res.id).to.be.a('string');",
+                      "});",
+                      "pm.environment.set('ownerRestaurantId', res.id);",
+                      "pm.environment.set('restaurantId', res.id);",
+                      "pm.environment.unset('ownerOrderId');"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "2.2 Create Restaurant Profile",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -450,7 +567,7 @@
                 "url": {
                   "raw": "{{restaurantServiceUrl}}/api/restaurants",
                   "host": [
-                    "restaurants"
+                    "{{restaurantServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -459,29 +576,33 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Phở Thìn Hà Nội Gourmet\",\n  \"address\": \"45 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội\",\n  \"phoneNumber\": \"0912345678\",\n  \"description\": \"Phở bò tái lăn truyền thống Hà Nội hơn 40 năm\",\n  \"operatingHours\": {\n    \"openTime\": \"06:00\",\n    \"closeTime\": \"22:00\"\n  }\n}"
+                  "raw": "{\n  \"name\": \"Phở Thìn Hà Nội Gourmet\",\n  \"description\": \"Phở bò tái lăn truyền thống Hà Nội hơn 40 năm\",\n  \"address\": \"45 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội\",\n  \"phone\": \"0912345678\",\n  \"cuisineType\": \"VIETNAMESE\",\n  \"operatingHours\": [\n    {\n      \"dayOfWeek\": \"MONDAY\",\n      \"openTime\": \"06:00\",\n      \"closeTime\": \"22:00\"\n    }\n  ]\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "2.3 Add Menu Item with Nutrition Metrics",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"2.2 Restaurant created with status 200 or 201\", function () {",
+                      "pm.test('2.3 Menu item with nutrition metrics created with 200 or 201', function () {",
                       "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
                       "});",
                       "const res = pm.response.json();",
-                      "pm.expect(res.id).to.be.a(\"string\");",
-                      "pm.environment.set(\"restaurantId\", res.id);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('Menu item id and calories=580 saved', function () {",
+                      "    pm.expect(res.id).to.be.a('string');",
+                      "    pm.expect(res.calories).to.eql(580);",
+                      "});",
+                      "pm.environment.set('ownerMenuItemId', res.id);",
+                      "pm.environment.set('menuItemId', res.id);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "2.3 Add Menu Item with Nutrition Metrics",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -499,41 +620,41 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{menuServiceUrl}}/api/menu-items",
+                  "raw": "{{menuServiceUrl}}/api/restaurants/{{ownerRestaurantId}}/items",
                   "host": [
-                    "menu-items"
+                    "{{menuServiceUrl}}"
                   ],
                   "path": [
                     "api",
-                    "menu-items"
+                    "restaurants",
+                    "{{ownerRestaurantId}}",
+                    "items"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"name\": \"Phở Bò Tái Lăn Đặc Biệt\",\n  \"description\": \"Thịt bò xào lăn tỏi thơm lừng, nước dùng hầm xương 24h\",\n  \"price\": 75000,\n  \"category\": \"Món chính\",\n  \"isAvailable\": true,\n  \"calories\": 580,\n  \"protein\": 38.5,\n  \"carbs\": 65,\n  \"fat\": 14.2\n}"
+                  "raw": "{\n  \"name\": \"Phở Bò Tái Lăn Đặc Biệt\",\n  \"description\": \"Thịt bò xào lăn tỏi thơm lừng, nước dùng hầm xương 24h\",\n  \"price\": 75000,\n  \"calories\": 580,\n  \"proteinG\": 38.5,\n  \"carbG\": 65,\n  \"fatG\": 14.2,\n  \"category\": \"MAIN\",\n  \"isAvailable\": true\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "2.4 Update Menu Item Availability",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"2.3 Menu item with nutrition metrics created with 200 or 201\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                      "});",
+                      "pm.test('2.4 Menu item updated with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.expect(res.id).to.be.a(\"string\");",
-                      "pm.environment.set(\"menuItemId\", res.id);",
-                      "pm.expect(res.calories).to.eql(580);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('Price updated to 79000', function () {",
+                      "    pm.expect(Number(res.price)).to.eql(79000);",
+                      "});"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "2.4 Update Menu Item Availability",
+              ],
               "request": {
                 "method": "PUT",
                 "header": [
@@ -551,38 +672,90 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{menuServiceUrl}}/api/menu-items/{{menuItemId}}",
+                  "raw": "{{menuServiceUrl}}/api/items/{{ownerMenuItemId}}",
                   "host": [
-                    "menu-items"
+                    "{{menuServiceUrl}}"
                   ],
                   "path": [
                     "api",
-                    "menu-items",
-                    "{{menuItemId}}"
+                    "items",
+                    "{{ownerMenuItemId}}"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Phở Bò Tái Lăn Đặc Biệt (Best Seller)\",\n  \"description\": \"Thịt bò xào lăn tỏi thơm lừng, nước dùng hầm xương 24h\",\n  \"price\": 79000,\n  \"category\": \"Món chính\",\n  \"isAvailable\": true,\n  \"calories\": 580,\n  \"protein\": 38.5,\n  \"carbs\": 65,\n  \"fat\": 14.2\n}"
+                  "raw": "{\n  \"name\": \"Phở Bò Tái Lăn Đặc Biệt (Best Seller)\",\n  \"description\": \"Thịt bò xào lăn tỏi thơm lừng, nước dùng hầm xương 24h\",\n  \"price\": 79000,\n  \"calories\": 580,\n  \"proteinG\": 38.5,\n  \"carbG\": 65,\n  \"fatG\": 14.2,\n  \"category\": \"MAIN\",\n  \"isAvailable\": true\n}"
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"2.4 Menu item updated with 200\", function () { pm.response.to.have.status(200); });",
-                      "const res = pm.response.json();",
-                      "pm.expect(res.price).to.eql(79000);"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             },
             {
               "name": "2.5 Inspect Restaurant Live Orders",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Admin duyệt nhà hàng mới tạo (kèm X-User-Id) và tạo 1 đơn hàng mẫu cho nhà hàng này",
+                      "const restId = pm.environment.get('ownerRestaurantId');",
+                      "const itemId = pm.environment.get('ownerMenuItemId');",
+                      "const custId = pm.environment.get('userId') || '00000000-0000-0000-0000-000000000001';",
+                      "if (restId && itemId && !pm.environment.get('ownerOrderId')) {",
+                      "    pm.sendRequest({",
+                      "        url: pm.variables.replaceIn('{{restaurantServiceUrl}}/api/restaurants/admin/' + restId + '/approve'),",
+                      "        method: 'POST',",
+                      "        header: {",
+                      "            'X-User-Id': '00000000-0000-0000-0000-000000000001',",
+                      "            'X-User-Role': 'ADMIN'",
+                      "        }",
+                      "    }, function () {",
+                      "        pm.sendRequest({",
+                      "            url: pm.variables.replaceIn('{{orderServiceUrl}}/api/orders'),",
+                      "            method: 'POST',",
+                      "            header: { 'Content-Type': 'application/json', 'X-User-Id': custId, 'X-User-Role': 'CUSTOMER' },",
+                      "            body: {",
+                      "                mode: 'raw',",
+                      "                raw: JSON.stringify({",
+                      "                    restaurantId: restId,",
+                      "                    deliveryAddress: '45 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội',",
+                      "                    note: 'Đơn test kịch bản Owner',",
+                      "                    paymentMethod: 'CASH',",
+                      "                    items: [{ menuItemId: itemId, quantity: 1 }]",
+                      "                })",
+                      "            }",
+                      "        }, function (err, res) {",
+                      "            if (!err && res.code < 300) {",
+                      "                const data = res.json();",
+                      "                const o = data.order || data;",
+                      "                if (o && o.id) pm.environment.set('ownerOrderId', o.id);",
+                      "            }",
+                      "            setTimeout(function () {}, 1200);",
+                      "        });",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('2.5 Live orders list returned with 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "const list = res.content || res;",
+                      "pm.test('Restaurant has at least 1 order', function () {",
+                      "    pm.expect(Array.isArray(list)).to.be.true;",
+                      "    pm.expect(list.length).to.be.above(0);",
+                      "});",
+                      "if (list.length > 0 && !pm.environment.get('ownerOrderId')) {",
+                      "    pm.environment.set('ownerOrderId', list[0].id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -596,33 +769,64 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{orderServiceUrl}}/api/orders/restaurant/{{restaurantId}}",
+                  "raw": "{{orderServiceUrl}}/api/orders/restaurant/{{ownerRestaurantId}}?page=0&size=20",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
                     "orders",
                     "restaurant",
-                    "{{restaurantId}}"
+                    "{{ownerRestaurantId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
                   ]
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"2.5 Live orders list returned with 200\", function () { pm.response.to.have.status(200); });"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             },
             {
               "name": "2.6 Transition Order Status to READY",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Đảm bảo đơn ở CONFIRMED trước khi chuyển sang READY",
+                      "const orderId = pm.environment.get('ownerOrderId');",
+                      "const ownerId = pm.environment.get('ownerId');",
+                      "if (orderId && ownerId) {",
+                      "    pm.sendRequest({",
+                      "        url: pm.variables.replaceIn('{{orderServiceUrl}}/api/orders/' + orderId + '/status'),",
+                      "        method: 'PUT',",
+                      "        header: { 'Content-Type': 'application/json', 'X-User-Id': ownerId, 'X-User-Role': 'RESTAURANT_OWNER' },",
+                      "        body: { mode: 'raw', raw: JSON.stringify({ status: 'CONFIRMED' }) }",
+                      "    }, function () {",
+                      "        setTimeout(function () {}, 300);",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('2.6 Order status updated to READY with 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "PUT",
                 "header": [
@@ -640,14 +844,14 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}/status",
+                  "raw": "{{orderServiceUrl}}/api/orders/{{ownerOrderId}}/status",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
                     "orders",
-                    "{{orderId}}",
+                    "{{ownerOrderId}}",
                     "status"
                   ]
                 },
@@ -656,71 +860,115 @@
                   "raw": "{\n  \"status\": \"READY\"\n}"
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"2.6 Order status updated to READY with 200\", function () { pm.response.to.have.status(200); });",
-                      "const res = pm.response.json();",
-                      "pm.expect(res.status).to.eql(\"READY\");"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             },
             {
               "name": "2.7 Mark Order as DELIVERED",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Chuyển đơn từ READY -> SHIPPING trước khi Customer xác nhận đã nhận hàng",
+                      "const orderId = pm.environment.get('ownerOrderId');",
+                      "const ownerId = pm.environment.get('ownerId');",
+                      "if (orderId && ownerId) {",
+                      "    pm.sendRequest({",
+                      "        url: pm.variables.replaceIn('{{orderServiceUrl}}/api/orders/' + orderId + '/status'),",
+                      "        method: 'PUT',",
+                      "        header: { 'Content-Type': 'application/json', 'X-User-Id': ownerId, 'X-User-Role': 'RESTAURANT_OWNER' },",
+                      "        body: { mode: 'raw', raw: JSON.stringify({ status: 'SHIPPING' }) }",
+                      "    }, function () {",
+                      "        setTimeout(function () {}, 300);",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('2.7 Order completed with status 200 or 204', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "PUT",
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{ownerId}}"
+                    "value": "{{userId}}"
                   },
                   {
                     "key": "X-User-Role",
-                    "value": "RESTAURANT_OWNER"
+                    "value": "CUSTOMER"
                   }
                 ],
                 "url": {
-                  "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}/delivered",
+                  "raw": "{{orderServiceUrl}}/api/orders/{{ownerOrderId}}/delivered",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
                     "orders",
-                    "{{orderId}}",
+                    "{{ownerOrderId}}",
                     "delivered"
                   ]
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"2.7 Order completed with status DELIVERED\", function () { pm.response.to.have.status(200); });",
-                      "const res = pm.response.json();",
-                      "pm.expect(res.status).to.eql(\"DELIVERED\");"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             }
           ]
         },
         {
           "name": "Scenario 3 - AI Health Profiling & Meal Recommendation",
-          "description": "Kiểm thử toàn diện tính năng AI gợi ý món ăn dinh dưỡng: Cập nhật chỉ số sức khỏe cá nhân (BMR, TDEE, Calo mục tiêu) -> Kiểm tra AI Provider -> Nhận khuyến nghị món ăn và giải thích thông minh.",
+          "description": "Kiểm thử toàn diện tính năng AI gợi ý món ăn dinh dưỡng: Cập nhật chỉ số sức khỏe cá nhân (BMI, TDEE, Calo mục tiêu) -> Kiểm tra AI Provider -> Nhận khuyến nghị món ăn và giải thích thông minh.",
           "item": [
             {
               "name": "3.1 Login Customer",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.sendRequest({",
+                      "    url: pm.variables.replaceIn('{{userServiceUrl}}/api/auth/register'),",
+                      "    method: 'POST',",
+                      "    header: { 'Content-Type': 'application/json' },",
+                      "    body: {",
+                      "        mode: 'raw',",
+                      "        raw: JSON.stringify({",
+                      "            email: 'customer1@nomnom.com',",
+                      "            password: 'Password123!',",
+                      "            fullName: 'Nguyen Van A',",
+                      "            role: 'CUSTOMER'",
+                      "        })",
+                      "    }",
+                      "}, function () {});"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('3.1 Customer login status is 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "pm.environment.set('accessToken', res.token);",
+                      "pm.environment.set('userId', res.userId);"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -732,7 +980,7 @@
                 "url": {
                   "raw": "{{userServiceUrl}}/api/auth/login",
                   "host": [
-                    "auth"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -745,24 +993,24 @@
                   "raw": "{\n  \"email\": \"customer1@nomnom.com\",\n  \"password\": \"Password123!\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "3.2 Update User Health Metrics (Weight, Height, Age)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"3.1 Customer login status is 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('3.2 Health profile updated successfully with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.environment.set(\"accessToken\", res.token);",
-                      "pm.environment.set(\"userId\", res.userId);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.expect(res.height).to.eql(175);",
+                      "pm.expect(res.weight).to.eql(72);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "3.2 Update User Health Metrics (Weight, Height, Goal)",
+              ],
               "request": {
                 "method": "PUT",
                 "header": [
@@ -771,14 +1019,14 @@
                     "value": "application/json"
                   },
                   {
-                    "key": "X-User-Id",
-                    "value": "{{userId}}"
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
                   }
                 ],
                 "url": {
                   "raw": "{{userServiceUrl}}/api/users/me",
                   "host": [
-                    "users"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -788,36 +1036,42 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"fullName\": \"Nguyễn Văn A (Fitness Goal)\",\n  \"phoneNumber\": \"0987654321\",\n  \"gender\": \"MALE\",\n  \"birthDate\": \"1995-05-15\",\n  \"heightCm\": 175,\n  \"weightKg\": 72,\n  \"activityLevel\": \"MODERATELY_ACTIVE\",\n  \"dietaryGoal\": \"MAINTAIN_WEIGHT\"\n}"
+                  "raw": "{\n  \"fullName\": \"Nguyễn Văn A (Fitness Goal)\",\n  \"height\": 175,\n  \"weight\": 72,\n  \"age\": 28,\n  \"gender\": \"MALE\",\n  \"activityLevel\": \"MODERATE\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "3.3 Verify User Health Profile Summary",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"3.2 Health profile updated successfully with 200\", function () { pm.response.to.have.status(200); });"
-                    ],
-                    "type": "text/javascript"
+                      "pm.test('3.3 Health calculation summary returned with 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "pm.test('BMI, TDEE and calorieGoal are calculated', function () {",
+                      "    pm.expect(res.bmi).to.be.above(10);",
+                      "    pm.expect(res.tdee).to.be.above(1500);",
+                      "    pm.expect(res.calorieGoal).to.be.above(1500);",
+                      "});"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "3.3 Verify User Health Profile Summary",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
                   {
-                    "key": "X-User-Id",
-                    "value": "{{userId}}"
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
                   }
                 ],
                 "url": {
                   "raw": "{{userServiceUrl}}/api/users/me/health",
                   "host": [
-                    "users"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -827,32 +1081,31 @@
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "3.4 Check AI Recommendation Service Capability",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"3.3 Health calculation summary returned with 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('3.4 AI Recommendation config returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.expect(res.bmr).to.be.above(1000);",
-                      "pm.expect(res.tdee).to.be.above(1500);",
-                      "pm.expect(res.targetCalories).to.be.above(1500);"
-                    ],
-                    "type": "text/javascript"
+                      "pm.expect(res).to.have.property('aiEnabled');",
+                      "pm.expect(res).to.have.property('maxResults');"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "3.4 Check AI Recommendation Service Capability",
+              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
                   "raw": "{{recommendationServiceUrl}}/api/recommendations/config",
                   "host": [
-                    "recommendations"
+                    "{{recommendationServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -861,30 +1114,56 @@
                   ]
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"3.4 AI Recommendation config returned with 200\", function () { pm.response.to.have.status(200); });",
-                      "const res = pm.response.json();",
-                      "pm.expect(res).to.have.property(\"aiEnabled\");",
-                      "pm.expect(res).to.have.property(\"maxResults\");"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             },
             {
               "name": "3.5 Generate AI Meal Recommendation",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('publicRestaurantId')) {",
+                      "    pm.sendRequest({",
+                      "        url: pm.variables.replaceIn('{{restaurantServiceUrl}}/api/restaurants?page=0&size=5'),",
+                      "        method: 'GET'",
+                      "    }, function (err, res) {",
+                      "        if (!err && res.code === 200) {",
+                      "            const list = res.json().content || res.json();",
+                      "            if (list.length > 0) pm.environment.set('publicRestaurantId', list[0].id);",
+                      "        }",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('3.5 Recommendation response returned with 200', function () { pm.response.to.have.status(200); });",
+                      "const res = pm.response.json();",
+                      "pm.test('Items list returned', function () {",
+                      "    pm.expect(res).to.have.property('items');",
+                      "    pm.expect(Array.isArray(res.items)).to.be.true;",
+                      "    pm.expect(res.items.length).to.be.above(0);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
                   },
                   {
                     "key": "X-User-Id",
@@ -894,7 +1173,7 @@
                 "url": {
                   "raw": "{{recommendationServiceUrl}}/api/recommendations",
                   "host": [
-                    "recommendations"
+                    "{{recommendationServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -903,27 +1182,27 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"mealType\": \"LUNCH\",\n  \"targetCalories\": 600,\n  \"useAiRanking\": true,\n  \"dietaryPreferences\": [\n    \"Cơm\",\n    \"Phở\",\n    \"High Protein\"\n  ]\n}"
+                  "raw": "{\n  \"restaurantId\": \"{{publicRestaurantId}}\",\n  \"mealType\": \"LUNCH\",\n  \"useAi\": true\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "3.6 Review Recommendation Audit History",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"3.5 Recommendation response returned with 200\", function () { pm.response.to.have.status(200); });",
+                      "pm.test('3.6 History audit log returned with 200', function () { pm.response.to.have.status(200); });",
                       "const res = pm.response.json();",
-                      "pm.expect(res).to.have.property(\"items\");",
-                      "pm.expect(Array.isArray(res.items)).to.be.true;"
-                    ],
-                    "type": "text/javascript"
+                      "pm.expect(res).to.have.property('content');",
+                      "pm.expect(res.content.length).to.be.above(0);"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "3.6 Review Recommendation Audit History",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -935,29 +1214,26 @@
                 "url": {
                   "raw": "{{recommendationServiceUrl}}/api/recommendations/history?page=0&size=10",
                   "host": [
-                    "recommendations"
+                    "{{recommendationServiceUrl}}"
                   ],
                   "path": [
                     "api",
                     "recommendations",
                     "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
                   ]
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"3.6 History audit log returned with 200\", function () { pm.response.to.have.status(200); });",
-                      "const res = pm.response.json();",
-                      "pm.expect(res).to.have.property(\"content\");"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             }
           ]
         },
@@ -967,13 +1243,26 @@
           "item": [
             {
               "name": "4.1 Unauthorized Access to Orders without Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('4.1 Rejects request without authentication header (400/401/403)', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 403]);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{orderServiceUrl}}/api/orders/me",
+                  "raw": "{{gatewayUrl}}/api/orders/me",
                   "host": [
-                    "orders"
+                    "{{gatewayUrl}}"
                   ],
                   "path": [
                     "api",
@@ -982,23 +1271,23 @@
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "4.2 Customer Accessing Owner Endpoints (Forbidden)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"4.1 Rejects request without authentication header (400 or 401)\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 403]);",
+                      "pm.test('4.2 Customer cannot update restaurant order status (403)', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([400, 403]);",
                       "});"
-                    ],
-                    "type": "text/javascript"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "4.2 Customer Accessing Owner Endpoints (Forbidden)",
+              ],
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1018,7 +1307,7 @@
                 "url": {
                   "raw": "{{orderServiceUrl}}/api/orders/{{orderId}}/status",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -1032,23 +1321,23 @@
                   "raw": "{\n  \"status\": \"READY\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "4.3 Login with Wrong Password (Authentication Failure)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"4.2 Customer cannot update restaurant order status (403)\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([400, 403]);",
+                      "pm.test('4.3 Invalid password rejected with 400 or 401', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([400, 401]);",
                       "});"
-                    ],
-                    "type": "text/javascript"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "4.3 Login with Wrong Password (Authentication Failure)",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -1060,7 +1349,7 @@
                 "url": {
                   "raw": "{{userServiceUrl}}/api/auth/login",
                   "host": [
-                    "auth"
+                    "{{userServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -1073,23 +1362,23 @@
                   "raw": "{\n  \"email\": \"customer1@nomnom.com\",\n  \"password\": \"WrongPassword999!\"\n}"
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "4.4 Retrieve Non-Existent Order (Not Found)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"4.3 Invalid password rejected with 400 or 401\", function () {",
-                      "    pm.expect(pm.response.code).to.be.oneOf([400, 401]);",
+                      "pm.test('4.4 Non-existent order returns 404', function () {",
+                      "    pm.response.to.have.status(404);",
                       "});"
-                    ],
-                    "type": "text/javascript"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "4.4 Retrieve Non-Existent Order (Not Found)",
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -1105,7 +1394,7 @@
                 "url": {
                   "raw": "{{orderServiceUrl}}/api/orders/00000000-0000-0000-0000-000000000000",
                   "host": [
-                    "orders"
+                    "{{orderServiceUrl}}"
                   ],
                   "path": [
                     "api",
@@ -1114,23 +1403,23 @@
                   ]
                 }
               },
-              "response": [],
+              "response": []
+            },
+            {
+              "name": "4.5 Validation Error (Invalid Payment Amount)",
               "event": [
                 {
                   "listen": "test",
                   "script": {
+                    "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"4.4 Non-existent order returns 404\", function () {",
-                      "    pm.response.to.have.status(404);",
+                      "pm.test('4.5 Invalid payload rejected with 400 Bad Request', function () {",
+                      "    pm.response.to.have.status(400);",
                       "});"
-                    ],
-                    "type": "text/javascript"
+                    ]
                   }
                 }
-              ]
-            },
-            {
-              "name": "4.5 Create Order with Empty Items (Validation Error)",
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -1141,41 +1430,24 @@
                   {
                     "key": "X-User-Id",
                     "value": "{{userId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "CUSTOMER"
                   }
                 ],
                 "url": {
-                  "raw": "{{orderServiceUrl}}/api/orders",
+                  "raw": "{{paymentServiceUrl}}/api/payments",
                   "host": [
-                    "orders"
+                    "{{paymentServiceUrl}}"
                   ],
                   "path": [
                     "api",
-                    "orders"
+                    "payments"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"restaurantId\": \"{{restaurantId}}\",\n  \"deliveryAddress\": \"123 Test Street\",\n  \"items\": []\n}"
+                  "raw": "{\n  \"orderId\": \"00000000-0000-0000-0000-000000000001\",\n  \"amount\": 0,\n  \"paymentMethod\": \"CASH\"\n}"
                 }
               },
-              "response": [],
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"4.5 Empty order items rejected with 400 Bad Request\", function () {",
-                      "    pm.response.to.have.status(400);",
-                      "});"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
+              "response": []
             }
           ]
         }
