@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/restaurant_db
     username: ${POSTGRES_USER:postgres}
@@ -10,3 +14,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+nomnom:
+  restaurant:
+    upload-dir: ${RESTAURANT_UPLOAD_DIR:/app/uploads/restaurants}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, MapPin, Phone, Image as ImageIcon, Upload, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Settings, MapPin, Phone, Image as ImageIcon, Upload, Clock, CheckCircle, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,7 @@ export function RestaurantSettings() {
   });
 
   const [isDirty, setIsDirty] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch restaurant
   const { data: restaurant, isLoading } = useQuery({
@@ -53,21 +54,31 @@ export function RestaurantSettings() {
     setIsDirty(true);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Kích thước ảnh quá lớn (vượt quá 5MB)");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        handleChange("imageUrl", reader.result as string);
-      };
-      reader.onerror = () => {
-        toast.error("Không thể đọc được ảnh này");
-      };
-      reader.readAsDataURL(file);
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vui lòng chọn tệp hình ảnh");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Kích thước ảnh quá lớn (vượt quá 5MB)");
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading("Đang tải ảnh bìa lên...");
+    try {
+      const imageUrl = await restaurantsApi.uploadImage(file);
+      handleChange("imageUrl", imageUrl);
+      toast.success("Tải ảnh bìa thành công!", { id: toastId });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || "Lỗi khi tải ảnh lên", { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -297,26 +308,40 @@ export function RestaurantSettings() {
                 <div className="flex gap-6 items-start">
                   {formData.imageUrl ? (
                     <div className="relative group">
-                      <div className="h-48 w-80 rounded-2xl overflow-hidden shadow-lg border-2 border-slate-200">
+                      <div className="h-48 w-80 rounded-2xl overflow-hidden shadow-lg border-2 border-slate-200 bg-slate-50 flex items-center justify-center">
                         <img 
                           src={formData.imageUrl} 
                           alt="Restaurant cover" 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className={`w-full h-full object-cover transition-transform duration-300 ${isUploading ? 'opacity-40' : 'group-hover:scale-105'}`}
                         />
+                        {isUploading && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
+                            <Loader2 className="w-8 h-8 animate-spin text-white" />
+                            <span className="text-xs font-semibold text-white">Đang tải lên...</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all rounded-2xl flex items-center justify-center">
-                        <Label htmlFor="image-upload" className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg text-[#181c20] font-semibold text-sm flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4" /> Change Cover
-                        </Label>
-                      </div>
+                      {!isUploading && (
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all rounded-2xl flex items-center justify-center">
+                          <Label htmlFor="image-upload" className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg text-[#181c20] font-semibold text-sm flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4" /> Change Cover
+                          </Label>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="h-48 w-80 rounded-2xl bg-gradient-to-br from-[#ab3500]/5 to-[#ff6b35]/5 border-2 border-dashed border-[#ab3500]/30 flex flex-col items-center justify-center cursor-pointer hover:from-[#ab3500]/10 hover:to-[#ff6b35]/10 transition-all group">
                       <Label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center justify-center w-full h-full">
                         <div className="w-14 h-14 rounded-2xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <Upload className="w-6 h-6 text-[#ab3500]" />
+                          {isUploading ? (
+                            <Loader2 className="w-6 h-6 animate-spin text-[#ab3500]" />
+                          ) : (
+                            <Upload className="w-6 h-6 text-[#ab3500]" />
+                          )}
                         </div>
-                        <span className="text-sm font-semibold text-[#ab3500]">Upload Cover Image</span>
+                        <span className="text-sm font-semibold text-[#ab3500]">
+                          {isUploading ? "Đang tải ảnh..." : "Upload Cover Image"}
+                        </span>
                         <span className="text-xs text-slate-500 mt-1">Max 5MB</span>
                       </Label>
                     </div>
@@ -325,6 +350,7 @@ export function RestaurantSettings() {
                     id="image-upload" 
                     type="file" 
                     accept="image/*" 
+                    disabled={isUploading}
                     className="hidden" 
                     onChange={handleImageChange}
                   />
@@ -410,10 +436,10 @@ export function RestaurantSettings() {
             </Button>
             <Button 
               onClick={handleSave} 
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={createMutation.isPending || updateMutation.isPending || isUploading}
               className="bg-gradient-to-r from-[#ab3500] to-[#ff6b35] hover:from-[#832600] hover:to-[#e55a2b] text-white font-bold h-11 px-8 rounded-2xl shadow-lg shadow-[#ab3500]/25"
             >
-              {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Changes"}
+              {isUploading ? "Uploading..." : (createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Changes")}
             </Button>
           </div>
         </div>

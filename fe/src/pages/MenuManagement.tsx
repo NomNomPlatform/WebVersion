@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, X, Edit, Upload, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, X, Edit, Upload, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ export function MenuManagement() {
   const [activeStatus, setActiveStatus] = useState<"ALL" | "AVAILABLE" | "UNAVAILABLE">("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -150,21 +151,31 @@ export function MenuManagement() {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Kích thước ảnh quá lớn (vượt quá 5MB)");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, imageUrl: reader.result as string });
-      };
-      reader.onerror = () => {
-        toast.error("Không thể đọc được ảnh này");
-      };
-      reader.readAsDataURL(file);
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vui lòng chọn tệp hình ảnh");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Kích thước ảnh quá lớn (vượt quá 5MB)");
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading("Đang tải ảnh món ăn lên...");
+    try {
+      const imageUrl = await menuApi.uploadImage(file);
+      setFormData((prev) => ({ ...prev, imageUrl }));
+      toast.success("Tải ảnh món ăn thành công!", { id: toastId });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || "Lỗi khi tải ảnh lên", { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -435,21 +446,41 @@ export function MenuManagement() {
                 <Label>Image</Label>
                 <div className="flex items-center gap-4">
                   {formData.imageUrl && formData.imageUrl.trim() !== "" && (
-                    <div className="w-16 h-16 rounded-lg border overflow-hidden shrink-0 bg-slate-100">
+                    <div className="relative w-16 h-16 rounded-lg border overflow-hidden shrink-0 bg-slate-100 group">
                       <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      {!isUploading && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, imageUrl: "" }))}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                          title="Xóa ảnh"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   )}
                   <div className="flex-1">
-                    <Label htmlFor="image-upload" className="cursor-pointer">
+                    <Label htmlFor="image-upload" className={`cursor-pointer ${isUploading ? 'pointer-events-none opacity-60' : ''}`}>
                       <div className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 rounded-lg hover:bg-slate-50 transition-colors w-full text-sm font-medium text-slate-600 justify-center">
-                        <Upload className="w-4 h-4" />
-                        <span>Upload Image (Max 5MB)</span>
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+                            <span>Đang tải ảnh lên...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            <span>{formData.imageUrl ? "Đổi ảnh món ăn (Max 5MB)" : "Upload Image (Max 5MB)"}</span>
+                          </>
+                        )}
                       </div>
                     </Label>
                     <input
                       id="image-upload"
                       type="file"
                       accept="image/*"
+                      disabled={isUploading}
                       className="hidden"
                       onChange={handleImageChange}
                     />
@@ -524,10 +555,10 @@ export function MenuManagement() {
               </Button>
               <Button
                 onClick={handleSaveClick}
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending || isUploading}
                 className="bg-[#ab3500] hover:bg-[#832600] text-white"
               >
-                {createMutation.isPending || updateMutation.isPending ? "Saving..." : (editingItem ? "Save Changes" : "Create Item")}
+                {isUploading ? "Uploading image..." : (createMutation.isPending || updateMutation.isPending ? "Saving..." : (editingItem ? "Save Changes" : "Create Item"))}
               </Button>
             </div>
           </Card>
