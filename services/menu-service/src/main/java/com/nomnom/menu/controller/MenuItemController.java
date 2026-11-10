@@ -3,16 +3,21 @@ package com.nomnom.menu.controller;
 import com.nomnom.menu.dto.MenuItemRequest;
 import com.nomnom.menu.dto.MenuItemResponse;
 import com.nomnom.menu.dto.PageResponse;
+import com.nomnom.menu.service.MenuItemImageStorageService;
 import com.nomnom.menu.service.MenuItemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -20,6 +25,29 @@ import java.util.UUID;
 public class MenuItemController {
 
     private final MenuItemService menuItemService;
+    private final MenuItemImageStorageService menuItemImageStorageService;
+
+    /** RESTAURANT_OWNER only — upload ảnh món ăn */
+    @PostMapping(value = "/api/items/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, String>> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        requireRole(userRole, "RESTAURANT_OWNER");
+        String imageUrl = menuItemImageStorageService.save(file);
+        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+    }
+
+    /** Public — serve ảnh tĩnh của món ăn kèm cache */
+    @GetMapping("/api/items/images/{filename:.+}")
+    public ResponseEntity<Resource> getImage(@PathVariable String filename) {
+        Resource resource = menuItemImageStorageService.loadAsResource(filename);
+        MediaType contentType = mediaTypeFor(filename);
+        return ResponseEntity.ok()
+                .contentType(contentType)
+                .header("Cache-Control", "public, max-age=86400")
+                .body(resource);
+    }
 
     /** Public — danh sách món ăn của nhà hàng, filter theo category */
     @GetMapping("/api/restaurants/{restaurantId}/items")
@@ -92,5 +120,12 @@ public class MenuItemController {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid X-User-Id format");
         }
+    }
+
+    private static MediaType mediaTypeFor(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".png")) return MediaType.IMAGE_PNG;
+        if (lower.endsWith(".webp")) return MediaType.parseMediaType("image/webp");
+        return MediaType.IMAGE_JPEG;
     }
 }

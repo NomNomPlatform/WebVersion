@@ -40,7 +40,7 @@ public class GroqProvider implements LlmProvider {
         AiProperties.Provider cfg = props.getGroq();
         String baseUrl = cfg.getBaseUrl() != null ? cfg.getBaseUrl() : "https://api.groq.com/openai/v1";
         Map<String, Object> body = Map.of(
-                "model", cfg.getModel() != null ? cfg.getModel() : "llama-3.3-70b-versatile",
+                "model", cfg.getModel() != null ? cfg.getModel() : "openai/gpt-oss-20b",
                 "temperature", 0.2,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(Map.of("role", "user", "content", prompt)));

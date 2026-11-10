@@ -298,6 +298,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      RESTAURANT_UPLOAD_DIR: /app/uploads/restaurants
+    volumes:
+      - restaurant_uploads:/app/uploads/restaurants
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/actuator/health"]
       interval: 15s
@@ -365,6 +368,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/menu_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      MENU_UPLOAD_DIR: /app/uploads/menus
+    volumes:
+      - menu_uploads:/app/uploads/menus
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8084/actuator/health"]
       interval: 15s
@@ -527,6 +533,8 @@ volumes:
   mongo_data:
   redis_data:
   avatar_uploads:
+  restaurant_uploads:
+  menu_uploads:
 
 networks:
   nomnom-network:

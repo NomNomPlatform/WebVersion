@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search, LayoutDashboard, Store, Users,
-  ShoppingBag, Settings, LogOut, ChevronRight
+  ShoppingBag, BarChart3, Settings, LogOut, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: "/admin/restaurants", icon: Store, label: "Restaurants" },
   { to: "/admin/users", icon: Users, label: "Users" },
   { to: "/admin/orders", icon: ShoppingBag, label: "Global Orders" },
+  { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/admin/settings", icon: Settings, label: "Platform Settings" },
 ];
 

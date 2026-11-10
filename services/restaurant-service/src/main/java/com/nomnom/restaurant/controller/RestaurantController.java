@@ -3,16 +3,21 @@ package com.nomnom.restaurant.controller;
 import com.nomnom.restaurant.dto.PageResponse;
 import com.nomnom.restaurant.dto.RestaurantRequest;
 import com.nomnom.restaurant.dto.RestaurantResponse;
+import com.nomnom.restaurant.service.RestaurantImageStorageService;
 import com.nomnom.restaurant.service.RestaurantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -21,6 +26,29 @@ import java.util.UUID;
 public class RestaurantController {
 
     private final RestaurantService restaurantService;
+    private final RestaurantImageStorageService restaurantImageStorageService;
+
+    /** RESTAURANT_OWNER only — upload ảnh bìa nhà hàng */
+    @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, String>> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+        requireRole(userRole, "RESTAURANT_OWNER");
+        String imageUrl = restaurantImageStorageService.save(file);
+        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+    }
+
+    /** Public — serve ảnh tĩnh của nhà hàng kèm cache */
+    @GetMapping("/images/{filename:.+}")
+    public ResponseEntity<Resource> getImage(@PathVariable String filename) {
+        Resource resource = restaurantImageStorageService.loadAsResource(filename);
+        MediaType contentType = mediaTypeFor(filename);
+        return ResponseEntity.ok()
+                .contentType(contentType)
+                .header("Cache-Control", "public, max-age=86400")
+                .body(resource);
+    }
 
     /** Public — danh sách nhà hàng đang hoạt động */
     @GetMapping
@@ -195,5 +223,12 @@ public class RestaurantController {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid X-User-Id format");
         }
+    }
+
+    private static MediaType mediaTypeFor(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".png")) return MediaType.IMAGE_PNG;
+        if (lower.endsWith(".webp")) return MediaType.parseMediaType("image/webp");
+        return MediaType.IMAGE_JPEG;
     }
 }

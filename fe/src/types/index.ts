@@ -222,3 +222,60 @@ export interface Notification {
   createdAt: string;
 }
 
+// ---- Analytics & Reporting ----
+export interface DailyOrderStat {
+  date: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface TopMenuItemStat {
+  menuItemId: string;
+  name: string;
+  totalQuantity: number;
+  totalRevenue: number;
+}
+
+export interface TopRestaurantStat {
+  restaurantId: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface OrderAnalytics {
+  days: number;
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  activeOrders: number;
+  totalRevenue: number;
+  deliveredRevenue: number;
+  averageOrderValue: number;
+  statusBreakdown: Record<OrderStatus, number>;
+  dailyStats: DailyOrderStat[];
+  topItems: TopMenuItemStat[];
+  topRestaurants: TopRestaurantStat[];
+}
+
+export type PaymentMethod = "CASH" | "VNPAY" | "CARD";
+
+export interface PaymentMethodStat {
+  method: PaymentMethod;
+  count: number;
+  amount: number;
+}
+
+export interface PaymentAnalytics {
+  days: number;
+  totalTransactions: number;
+  completedCount: number;
+  refundedCount: number;
+  failedCount: number;
+  pendingCount: number;
+  totalCompletedAmount: number;
+  totalRefundedAmount: number;
+  methodBreakdown: PaymentMethodStat[];
+  statusBreakdown: Record<PaymentStatus, number>;
+}
+
+

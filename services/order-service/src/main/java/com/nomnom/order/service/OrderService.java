@@ -4,6 +4,10 @@ import com.nomnom.order.client.MenuClient.MenuItemResponse;
 import com.nomnom.order.client.PaymentClient;
 import com.nomnom.order.client.RestaurantClient.RestaurantResponse;
 import com.nomnom.order.dto.CreateOrderResponse;
+import com.nomnom.order.dto.OrderAnalyticsResponse;
+import com.nomnom.order.dto.OrderAnalyticsResponse.DailyOrderStat;
+import com.nomnom.order.dto.OrderAnalyticsResponse.TopMenuItemStat;
+import com.nomnom.order.dto.OrderAnalyticsResponse.TopRestaurantStat;
 import com.nomnom.order.dto.OrderItemRequest;
 import com.nomnom.order.dto.OrderRequest;
 import com.nomnom.order.entity.Order;
@@ -28,7 +32,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.util.UUID;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -249,19 +256,188 @@ public class OrderService {
     }
 
     public Page<Order> getRestaurantOrders(UUID restaurantId, UUID ownerId, Pageable pageable) {
-        RestaurantResponse restaurant = restaurantClient.getRestaurantById(restaurantId);
+        verifyRestaurantOwner(restaurantId, ownerId);
+        return orderRepository.findByRestaurantId(restaurantId, pageable);
+    }
 
+    public Page<Order> getAllOrders(Pageable pageable) {
+        return orderRepository.findAll(pageable);
+    }
+
+    /**
+     * Thống kê đơn hàng và doanh thu của một nhà hàng trong N ngày gần nhất.
+     */
+    @Transactional(readOnly = true)
+    public OrderAnalyticsResponse getRestaurantAnalytics(UUID restaurantId, UUID ownerId, int days) {
+        verifyRestaurantOwner(restaurantId, ownerId);
+        int normalizedDays = normalizeDays(days);
+        LocalDate startDay = LocalDate.now().minusDays(normalizedDays - 1L);
+        List<Order> orders = orderRepository.findByRestaurantIdAndCreatedAtGreaterThanEqual(
+                restaurantId, startDay.atStartOfDay());
+        return buildAnalytics(orders, normalizedDays, startDay, false);
+    }
+
+    /**
+     * Thống kê tổng hợp toàn sàn cho Admin trong N ngày gần nhất.
+     */
+    @Transactional(readOnly = true)
+    public OrderAnalyticsResponse getAdminAnalytics(int days) {
+        int normalizedDays = normalizeDays(days);
+        LocalDate startDay = LocalDate.now().minusDays(normalizedDays - 1L);
+        List<Order> orders = orderRepository.findByCreatedAtGreaterThanEqual(startDay.atStartOfDay());
+        return buildAnalytics(orders, normalizedDays, startDay, true);
+    }
+
+    private void verifyRestaurantOwner(UUID restaurantId, UUID ownerId) {
+        RestaurantResponse restaurant = restaurantClient.getRestaurantById(restaurantId);
         if (restaurant == null || restaurant.ownerId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid restaurant");
         }
         if (!restaurant.ownerId().equals(ownerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your restaurant");
         }
-
-        return orderRepository.findByRestaurantId(restaurantId, pageable);
     }
 
-    public Page<Order> getAllOrders(Pageable pageable) {
-        return orderRepository.findAll(pageable);
+    private static int normalizeDays(int days) {
+        if (days <= 0) return 30;
+        return Math.min(days, 365);
+    }
+
+    private static final Set<OrderStatus> REVENUE_STATUSES = EnumSet.of(
+            OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.SHIPPING, OrderStatus.DELIVERED);
+
+    private static final Set<OrderStatus> ACTIVE_STATUSES = EnumSet.of(
+            OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.SHIPPING);
+
+    private OrderAnalyticsResponse buildAnalytics(
+            List<Order> orders, int days, LocalDate startDay, boolean includeRestaurants) {
+
+        Map<OrderStatus, Long> statusBreakdown = new EnumMap<>(OrderStatus.class);
+        for (OrderStatus status : OrderStatus.values()) {
+            statusBreakdown.put(status, 0L);
+        }
+
+        // Khởi tạo map theo từng ngày để biểu đồ không bị đứt quãng vào ngày 0 đơn
+        Map<LocalDate, long[]> dailyOrderCounts = new LinkedHashMap<>();
+        Map<LocalDate, BigDecimal> dailyRevenues = new LinkedHashMap<>();
+        for (int i = 0; i < days; i++) {
+            LocalDate day = startDay.plusDays(i);
+            dailyOrderCounts.put(day, new long[]{0L});
+            dailyRevenues.put(day, BigDecimal.ZERO);
+        }
+
+        Map<UUID, String> itemNames = new HashMap<>();
+        Map<UUID, Long> itemQuantities = new HashMap<>();
+        Map<UUID, BigDecimal> itemRevenues = new HashMap<>();
+
+        Map<UUID, Long> restaurantOrderCounts = new HashMap<>();
+        Map<UUID, BigDecimal> restaurantRevenues = new HashMap<>();
+
+        long totalOrders = orders.size();
+        long completedOrders = 0;
+        long cancelledOrders = 0;
+        long activeOrders = 0;
+        long revenueOrderCount = 0;
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        BigDecimal deliveredRevenue = BigDecimal.ZERO;
+
+        for (Order order : orders) {
+            OrderStatus status = order.getStatus();
+            statusBreakdown.merge(status, 1L, Long::sum);
+
+            if (status == OrderStatus.DELIVERED) completedOrders++;
+            if (status == OrderStatus.CANCELLED) cancelledOrders++;
+            if (ACTIVE_STATUSES.contains(status)) activeOrders++;
+
+            BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+            boolean isRevenueOrder = REVENUE_STATUSES.contains(status);
+
+            if (isRevenueOrder) {
+                revenueOrderCount++;
+                totalRevenue = totalRevenue.add(amount);
+                if (status == OrderStatus.DELIVERED) {
+                    deliveredRevenue = deliveredRevenue.add(amount);
+                }
+
+                if (order.getItems() != null) {
+                    for (OrderItem item : order.getItems()) {
+                        UUID itemId = item.getMenuItemId();
+                        long qty = item.getQuantity() != null ? item.getQuantity() : 0L;
+                        BigDecimal unitPrice = item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO;
+                        BigDecimal lineRevenue = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+                        itemNames.putIfAbsent(itemId, item.getName());
+                        itemQuantities.merge(itemId, qty, Long::sum);
+                        itemRevenues.merge(itemId, lineRevenue, BigDecimal::add);
+                    }
+                }
+
+                if (includeRestaurants && order.getRestaurantId() != null) {
+                    restaurantOrderCounts.merge(order.getRestaurantId(), 1L, Long::sum);
+                    restaurantRevenues.merge(order.getRestaurantId(), amount, BigDecimal::add);
+                }
+            }
+
+            if (order.getCreatedAt() != null) {
+                LocalDate orderDate = order.getCreatedAt().toLocalDate();
+                long[] countHolder = dailyOrderCounts.get(orderDate);
+                if (countHolder != null) {
+                    countHolder[0]++;
+                }
+                if (isRevenueOrder && dailyRevenues.containsKey(orderDate)) {
+                    dailyRevenues.put(orderDate, dailyRevenues.get(orderDate).add(amount));
+                }
+            }
+        }
+
+        BigDecimal averageOrderValue = revenueOrderCount > 0
+                ? totalRevenue.divide(BigDecimal.valueOf(revenueOrderCount), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        List<DailyOrderStat> dailyStats = new ArrayList<>(days);
+        for (LocalDate day : dailyOrderCounts.keySet()) {
+            dailyStats.add(new DailyOrderStat(
+                    day.toString(),
+                    dailyOrderCounts.get(day)[0],
+                    dailyRevenues.get(day)));
+        }
+
+        List<TopMenuItemStat> topItems = itemQuantities.entrySet().stream()
+                .map(e -> new TopMenuItemStat(
+                        e.getKey(),
+                        itemNames.getOrDefault(e.getKey(), "Unknown"),
+                        e.getValue(),
+                        itemRevenues.getOrDefault(e.getKey(), BigDecimal.ZERO)))
+                .sorted(Comparator.comparingLong(TopMenuItemStat::totalQuantity).reversed()
+                        .thenComparing(TopMenuItemStat::totalRevenue, Comparator.reverseOrder()))
+                .limit(10)
+                .toList();
+
+        List<TopRestaurantStat> topRestaurants = includeRestaurants
+                ? restaurantRevenues.entrySet().stream()
+                        .map(e -> new TopRestaurantStat(
+                                e.getKey(),
+                                restaurantOrderCounts.getOrDefault(e.getKey(), 0L),
+                                e.getValue()))
+                        .sorted(Comparator.comparing(TopRestaurantStat::revenue, Comparator.reverseOrder())
+                                .thenComparing(Comparator.comparingLong(TopRestaurantStat::orderCount).reversed()))
+                        .limit(10)
+                        .toList()
+                : List.of();
+
+        return new OrderAnalyticsResponse(
+                days,
+                totalOrders,
+                completedOrders,
+                cancelledOrders,
+                activeOrders,
+                totalRevenue,
+                deliveredRevenue,
+                averageOrderValue,
+                statusBreakdown,
+                dailyStats,
+                topItems,
+                topRestaurants
+        );
     }
 }

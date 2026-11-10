@@ -92,9 +92,12 @@ export function OwnerDashboard() {
             >
               <UtensilsCrossed className="w-4 h-4" /> Menu
             </Link>
-            <button className="flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:bg-slate-100 rounded-md transition-colors w-full text-left">
+            <Link
+              to="/owner/analytics"
+              className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors ${currentPath.includes("/owner/analytics") ? "bg-[#ff6b35]/10 text-[#ab3500] font-semibold border-r-4 border-[#ab3500]" : "text-muted-foreground hover:bg-slate-100"}`}
+            >
               <BarChart3 className="w-4 h-4" /> Analytics
-            </button>
+            </Link>
             <Link
               to="/owner/settings"
               className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors ${currentPath.includes("/owner/settings") ? "bg-[#ff6b35]/10 text-[#ab3500] font-semibold border-r-4 border-[#ab3500]" : "text-muted-foreground hover:bg-slate-100"}`}

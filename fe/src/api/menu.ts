@@ -39,4 +39,14 @@ export const menuApi = {
 
   remove: (itemId: string) =>
     apiClient.delete(`/items/${itemId}`).then((r) => r.data),
+
+  uploadImage: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient
+      .post<{ imageUrl: string }>("/items/upload-image", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data.imageUrl);
+  },
 };

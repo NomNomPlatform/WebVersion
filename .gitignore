@@ -26,6 +26,7 @@ target/
 .DS_Store
 Thumbs.db
 *.docx
+!Group Project Report_MSS301_NomNom.docx
 
 # Docker volumes (local data)
 postgres_data/

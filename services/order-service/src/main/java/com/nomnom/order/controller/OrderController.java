@@ -1,8 +1,9 @@
 package com.nomnom.order.controller;
 
+import com.nomnom.order.dto.CreateOrderResponse;
+import com.nomnom.order.dto.OrderAnalyticsResponse;
 import com.nomnom.order.dto.OrderRequest;
 import com.nomnom.order.dto.PageResponse;
-import com.nomnom.order.dto.CreateOrderResponse;
 import com.nomnom.order.entity.Order;
 import com.nomnom.order.entity.OrderStatus;
 import com.nomnom.order.service.OrderService;
@@ -86,6 +87,30 @@ public class OrderController {
         
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return PageResponse.from(orderService.getAllOrders(pageable));
+    }
+
+    @GetMapping("/restaurant/{restaurantId}/analytics")
+    public OrderAnalyticsResponse getRestaurantAnalytics(
+            @PathVariable("restaurantId") UUID restaurantId,
+            @RequestHeader("X-User-Id") UUID ownerId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam(defaultValue = "30") int days) {
+
+        if (!"RESTAURANT_OWNER".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only owners can view restaurant analytics");
+        }
+        return orderService.getRestaurantAnalytics(restaurantId, ownerId, days);
+    }
+
+    @GetMapping("/admin/analytics")
+    public OrderAnalyticsResponse getAdminAnalytics(
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam(defaultValue = "30") int days) {
+
+        if (!"ADMIN".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: role ADMIN required");
+        }
+        return orderService.getAdminAnalytics(days);
     }
 
     @DeleteMapping("/{id}")

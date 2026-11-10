@@ -1,6 +1,8 @@
 package com.nomnom.payment.service;
 
 import com.nomnom.payment.config.VNPayConfig;
+import com.nomnom.payment.dto.PaymentAnalyticsResponse;
+import com.nomnom.payment.dto.PaymentAnalyticsResponse.PaymentMethodStat;
 import com.nomnom.payment.dto.PaymentRequest;
 import com.nomnom.payment.dto.PaymentResponse;
 import com.nomnom.payment.entity.Payment;
@@ -17,8 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
-import java.util.UUID;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.*;
 
 /**
  * Core business logic for the Payment Service.
@@ -335,6 +338,76 @@ public class PaymentService {
             case "79" -> "Nhập sai mật khẩu thanh toán quá số lần cho phép";
             default   -> "Giao dịch thất bại (mã lỗi: " + code + ")";
         };
+    }
+
+    /**
+     * Thống kê giao dịch thanh toán toàn sàn trong N ngày gần nhất (dành cho Admin).
+     * {@code methodBreakdown} tổng hợp các giao dịch COMPLETED theo từng phương thức thanh toán.
+     */
+    @Transactional(readOnly = true)
+    public PaymentAnalyticsResponse getAdminAnalytics(int days) {
+        int normalizedDays = days <= 0 ? 30 : Math.min(days, 365);
+        LocalDate startDay = LocalDate.now().minusDays(normalizedDays - 1L);
+        List<Payment> payments = paymentRepository.findByCreatedAtGreaterThanEqual(startDay.atStartOfDay());
+
+        Map<PaymentStatus, Long> statusBreakdown = new EnumMap<>(PaymentStatus.class);
+        for (PaymentStatus s : PaymentStatus.values()) {
+            statusBreakdown.put(s, 0L);
+        }
+
+        Map<PaymentMethod, Long> methodCounts = new EnumMap<>(PaymentMethod.class);
+        Map<PaymentMethod, BigDecimal> methodAmounts = new EnumMap<>(PaymentMethod.class);
+        for (PaymentMethod m : PaymentMethod.values()) {
+            methodCounts.put(m, 0L);
+            methodAmounts.put(m, BigDecimal.ZERO);
+        }
+
+        long completedCount = 0;
+        long refundedCount = 0;
+        long failedCount = 0;
+        long pendingCount = 0;
+        BigDecimal totalCompletedAmount = BigDecimal.ZERO;
+        BigDecimal totalRefundedAmount = BigDecimal.ZERO;
+
+        for (Payment p : payments) {
+            PaymentStatus status = p.getStatus();
+            statusBreakdown.merge(status, 1L, Long::sum);
+            BigDecimal amount = p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO;
+
+            switch (status) {
+                case COMPLETED -> {
+                    completedCount++;
+                    totalCompletedAmount = totalCompletedAmount.add(amount);
+                    if (p.getPaymentMethod() != null) {
+                        methodCounts.merge(p.getPaymentMethod(), 1L, Long::sum);
+                        methodAmounts.merge(p.getPaymentMethod(), amount, BigDecimal::add);
+                    }
+                }
+                case REFUNDED -> {
+                    refundedCount++;
+                    totalRefundedAmount = totalRefundedAmount.add(amount);
+                }
+                case FAILED -> failedCount++;
+                case PENDING -> pendingCount++;
+            }
+        }
+
+        List<PaymentMethodStat> methodBreakdown = Arrays.stream(PaymentMethod.values())
+                .map(m -> new PaymentMethodStat(m, methodCounts.get(m), methodAmounts.get(m)))
+                .toList();
+
+        return new PaymentAnalyticsResponse(
+                normalizedDays,
+                payments.size(),
+                completedCount,
+                refundedCount,
+                failedCount,
+                pendingCount,
+                totalCompletedAmount,
+                totalRefundedAmount,
+                methodBreakdown,
+                statusBreakdown
+        );
     }
 
     private PaymentResponse toResponse(Payment payment, String paymentUrl) {
