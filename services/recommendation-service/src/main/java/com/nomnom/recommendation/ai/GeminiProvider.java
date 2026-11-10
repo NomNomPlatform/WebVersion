@@ -37,7 +37,7 @@ public class GeminiProvider implements LlmProvider {
     @Override
     public Optional<AiResult> rank(String prompt) {
         AiProperties.Provider cfg = props.getGemini();
-        String model = cfg.getModel() != null ? cfg.getModel() : "gemini-2.0-flash";
+        String model = cfg.getModel() != null ? cfg.getModel() : "gemini-flash-lite-latest";
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                 + model + ":generateContent?key=" + cfg.getApiKey();
 
