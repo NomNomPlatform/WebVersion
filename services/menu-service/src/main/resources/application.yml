@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: menu-service
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   config:
     import: optional:configserver:http://localhost:8888
   datasource:
@@ -37,3 +41,7 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+nomnom:
+  menu:
+    upload-dir: ${MENU_UPLOAD_DIR:/app/uploads/menus}
