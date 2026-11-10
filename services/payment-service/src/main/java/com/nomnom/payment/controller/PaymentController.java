@@ -1,5 +1,6 @@
 package com.nomnom.payment.controller;
 
+import com.nomnom.payment.dto.PaymentAnalyticsResponse;
 import com.nomnom.payment.dto.PaymentRequest;
 import com.nomnom.payment.dto.PaymentResponse;
 import com.nomnom.payment.service.PaymentService;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -57,6 +59,24 @@ public class PaymentController {
         String clientIp = getClientIp(httpRequest);
         PaymentResponse response = paymentService.processPayment(request, clientIp);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // ------------------------------------------------------------------
+    // GET /api/payments/admin/analytics (ADMIN only)
+    // ------------------------------------------------------------------
+
+    @Operation(
+            summary = "Get platform-wide payment analytics (Admin only)",
+            description = "Aggregates payment counts, completed/refunded amounts, and method breakdown over N days.")
+    @GetMapping("/admin/analytics")
+    public ResponseEntity<PaymentAnalyticsResponse> getAdminAnalytics(
+            @RequestHeader(value = "X-User-Role", required = false) String role,
+            @RequestParam(defaultValue = "30") int days) {
+
+        if (!"ADMIN".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: role ADMIN required");
+        }
+        return ResponseEntity.ok(paymentService.getAdminAnalytics(days));
     }
 
     // ------------------------------------------------------------------

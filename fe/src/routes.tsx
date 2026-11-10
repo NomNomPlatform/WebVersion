@@ -18,6 +18,7 @@ import { AdminOverview } from "@/pages/AdminOverview";
 import { AdminUserManagement } from "@/pages/AdminUserManagement";
 import { AdminOrdersOverview } from "@/pages/AdminOrdersOverview";
 import { AdminPlatformSettings } from "@/pages/AdminPlatformSettings";
+import { AdminAnalytics } from "@/pages/AdminAnalytics";
 import { BrowseAllPage } from "@/pages/BrowseAllPage";
 import { OffersPage } from "@/pages/OffersPage";
 import { RewardsPage } from "@/pages/RewardsPage";
@@ -25,6 +26,7 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 import { LiveOrdersPage } from "@/pages/LiveOrdersPage";
 import { ProfilePage, ProfileContent } from "@/pages/ProfilePage";
 import { OwnerOverview } from "@/pages/OwnerOverview";
+import { OwnerAnalytics } from "@/pages/OwnerAnalytics";
 
 export const router = createBrowserRouter([
   {
@@ -66,6 +68,7 @@ export const router = createBrowserRouter([
           { index: true, element: <OwnerOverview /> },
           { path: "orders", element: <LiveOrdersPage /> },
           { path: "menu", element: <MenuManagement /> },
+          { path: "analytics", element: <OwnerAnalytics /> },
           { path: "settings", element: <RestaurantSettings /> },
           { path: "profile", element: <ProfileContent /> },
         ],
@@ -85,6 +88,7 @@ export const router = createBrowserRouter([
           { path: "restaurants", element: <AdminRestaurantManagement /> },
           { path: "users", element: <AdminUserManagement /> },
           { path: "orders", element: <AdminOrdersOverview /> },
+          { path: "analytics", element: <AdminAnalytics /> },
           { path: "settings", element: <AdminPlatformSettings /> },
         ],
       },

@@ -4,6 +4,8 @@ import com.nomnom.payment.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +19,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      * @return the most recent payment if one exists
      */
     Optional<Payment> findFirstByOrderIdOrderByCreatedAtDesc(UUID orderId);
+
+    List<Payment> findByCreatedAtGreaterThanEqual(LocalDateTime start);
 }

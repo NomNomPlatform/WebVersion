@@ -4,11 +4,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Store, Users, ShoppingBag, Clock, CheckCircle2,
   XCircle, AlertCircle, TrendingUp, ArrowRight, ChevronRight,
+  BarChart3, Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { restaurantsApi } from "@/api/restaurants";
+import { ordersApi } from "@/api/orders";
+import { authApi } from "@/api/auth";
 import { useAuthStore } from "@/store/authStore";
+import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Restaurant } from "@/types";
 
@@ -100,6 +104,16 @@ export function AdminOverview() {
   const { data: restaurantsPage, isLoading } = useQuery({
     queryKey: ["admin-restaurants", 0],
     queryFn: () => restaurantsApi.getAllForAdmin(0, 100),
+  });
+
+  const { data: orderAnalytics } = useQuery({
+    queryKey: ["admin-order-analytics", 30],
+    queryFn: () => ordersApi.adminAnalytics(30),
+  });
+
+  const { data: usersPage } = useQuery({
+    queryKey: ["admin-users-count"],
+    queryFn: () => authApi.listUsers(0, 1),
   });
 
   const restaurants: Restaurant[] = restaurantsPage?.content ?? [];
@@ -208,6 +222,34 @@ export function AdminOverview() {
           />
         </div>
       )}
+
+      {/* ── Platform Metrics Row ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiCard
+          label="Total Users"
+          value={usersPage?.totalElements ?? "—"}
+          icon={Users}
+          color="text-violet-600"
+          bgColor="bg-violet-50"
+          sub="Registered accounts"
+        />
+        <KpiCard
+          label="Orders (30 Days)"
+          value={orderAnalytics?.totalOrders ?? "—"}
+          icon={ShoppingBag}
+          color="text-blue-600"
+          bgColor="bg-blue-50"
+          sub={orderAnalytics ? `${orderAnalytics.completedOrders} delivered` : "Loading..."}
+        />
+        <KpiCard
+          label="Platform GMV (30 Days)"
+          value={orderAnalytics ? formatCurrency(orderAnalytics.totalRevenue) : "—"}
+          icon={Banknote}
+          color="text-[#006a62]"
+          bgColor="bg-[#006a62]/10"
+          sub="Confirmed & delivered orders"
+        />
+      </div>
 
       {/* ── Main Grid ── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -318,6 +360,13 @@ export function AdminOverview() {
             label="Global Orders"
             description="Monitor all orders"
             iconBg="bg-gradient-to-br from-blue-500 to-indigo-600"
+          />
+          <QuickNavCard
+            to="/admin/analytics"
+            icon={BarChart3}
+            label="Analytics & Reports"
+            description="GMV, trends & top restaurants"
+            iconBg="bg-gradient-to-br from-teal-500 to-emerald-600"
           />
           <QuickNavCard
             to="/admin/settings"
